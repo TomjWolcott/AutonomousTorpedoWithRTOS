@@ -8,12 +8,29 @@
 #ifndef INC_STATE_MANAGEMENT_HPP_
 #define INC_STATE_MANAGEMENT_HPP_
 
+#include "cpp_main.hpp"
 #include "cmsis_os.h"
 #include "cpp_freertos_helpers.hpp"
 
 #include "sml.hpp"
 namespace sml = boost::sml;
-
+/*
+#define TASK(func, attributes, params) { \
+        func, \
+        (osThreadAttr_t){ \
+            .name = #func, \
+            .attr_bits = (attributes).attr_bits, \
+            .cb_mem = (attributes).cb_mem, \
+            .cb_size = (attributes).cb_size, \
+            .stack_mem = (attributes).stack_mem, \
+            .stack_size = (attributes).stack_size, \
+            .priority = (attributes).priority, \
+            .tz_module = (attributes).tz_module, \
+            .reserved = (attributes).reserved, \
+        }, \
+        params \
+    }
+*/
 struct Task {
 	osThreadFunc_t task;
 	osThreadAttr_t attributes;
@@ -151,5 +168,8 @@ namespace SystemModes {
 		}
 	};
 }
+
+extern MutexLazy<sml::sm<SystemModes::SM>> systemModesSM;
+
 
 #endif /* INC_STATE_MANAGEMENT_HPP_ */

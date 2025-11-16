@@ -5,32 +5,23 @@
  *      Author: tomwolcott
  */
 
+#include "state_management.hpp"
 #include "cpp_main.hpp"
 #include "cmsis_os.h"
 #include "task.h"
-#include <functional>
 
-MutexLazy<std::function<void(sml::sm<SystemModes::SM> *)>> sm_command = MutexLazy<std::function<void(sml::sm<SystemModes::SM> *)>>();
-
-void sendStateMachineCommand(std::function<void(sml::sm<SystemModes::SM> *)> command) {
-	auto lock = sm_command.get_lock();
-
-	*lock = command;
-}
-
-extern "C" void handleStateMachineCommands(void *parameters) {
-	sm_command.init_mutex();
-	sml::sm<SystemModes::SM> sm;
-
-	for (;;) {
-
-		auto lock = sm_command.get_lock();
-		(*lock)(&sm);
-	}
-}
+MutexLazy<sml::sm<SystemModes::SM>> systemModesSM = MutexLazy<sml::sm<SystemModes::SM>>();
 
 extern "C" __NO_RETURN void cppMainTask(void *argument) {
+	systemModesSM.init_mutex();
 
+	auto lock = systemModesSM.get_lock();
+	lock->process_event(SystemModes::StartStateMachine{});
+
+	// Threads CANNOT be allowed to exit normally, this exits the thread without a return condition
+//	for (;;) {
+//		osDelay(10000);
+//	}
 	int used_stack_size = uxTaskGetStackHighWaterMark(NULL);
 	osThreadExit();
 

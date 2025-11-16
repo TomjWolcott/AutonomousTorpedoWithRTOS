@@ -22,17 +22,9 @@ const osThreadAttr_t cppMainTask_attributes = {
 };
 
 #if __cplusplus
-#include "state_management.hpp"
-#include <functional>
-
-extern MutexLazy<std::function<void(sml::sm<SystemModes::SM> *)>> sm_command;
-
-void sendStateMachineCommand(std::function<void(sml::sm<SystemModes::SM> *)> command);
 
 extern "C" {
 #endif
-
-void handleStateMachineCommands(void *parameters);
 
 void cppMainTask(void *argument);
 
