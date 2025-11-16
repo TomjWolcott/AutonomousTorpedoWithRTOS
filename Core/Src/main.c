@@ -267,8 +267,8 @@ int main(void)
   respondToInputEventFlags = osEventFlagsNew(NULL);
 
   osThreadAttr_t cpp_attributes = {
-		  .name = "handleSM",
-		  .priority = (osPriority_t) osPriorityHigh,
+		  .name = "cppMainTask",
+		  .priority = (osPriority_t) osPriorityNormal,
 		  .stack_size = 2048
   };
   osThreadNew(cppMainTask, NULL, &cpp_attributes);
