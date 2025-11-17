@@ -11,6 +11,7 @@
 #include "cpp_main.hpp"
 #include "cmsis_os.h"
 #include "cpp_freertos_helpers.hpp"
+#include <functional>
 
 #include "sml.hpp"
 namespace sml = boost::sml;
@@ -36,35 +37,46 @@ struct Task {
 	osThreadAttr_t attributes;
 	void* parameters;
 	osThreadId_t handle = nullptr;
-	volatile bool *kill_task_marker = nullptr;
+	bool is_task_dead = false;
+	bool needs_termination = false;
 
-	Task(osThreadFunc_t task, const char *const task_name, osThreadAttr_t input_attributes, void* parameters) : task(task), parameters(parameters) {
-		input_attributes.name = task_name;
-		attributes = input_attributes;
+
+	Task(osThreadFunc_t task, osThreadAttr_t attributes, void* parameters) : task(task), attributes(attributes), parameters(parameters) {
+	}
+
+	Task(osThreadFunc_t task, osThreadAttr_t attributes, void* parameters, bool needs_termination) : task(task), attributes(attributes), parameters(parameters), needs_termination(needs_termination) {
 	}
 
 	bool spawn() {
-		if (kill_task_marker != nullptr)
-			*kill_task_marker = true;
+		is_task_dead = false;
 
-		handle = osThreadNew(task, parameters, &(attributes));
+		handle = osThreadNew(task, this, &(attributes));
 
     	return (handle != NULL);
 	}
 
 	bool despawn() {
-		if (kill_task_marker != nullptr) {
-			*kill_task_marker = true;
-		} else if (handle) {
-			osThreadTerminate(handle);
-		} else {
-			return false;
+		is_task_dead = true;
+
+		if (needs_termination) {
+			if (handle != nullptr) {
+				osThreadTerminate(handle);
+			}
 		}
 
     	handle = nullptr;
     	return true;
 	}
 };
+
+template<size_t N, Task state_tasks[N]>
+void enterStateAction() {
+    for (size_t i = 0; i < N; ++i) {
+    	if (state_tasks[i].task)
+    		state_tasks[i].spawn();
+    }
+}
+
 
 template<size_t N>
 auto getEnterStateAction(Task (&state_tasks)[N]) {
@@ -74,6 +86,13 @@ auto getEnterStateAction(Task (&state_tasks)[N]) {
         		state_tasks[i].spawn();
         }
     };
+}
+
+template<size_t N, Task state_tasks[N]>
+void exitStateAction() {
+    for (size_t i = 0; i < N; ++i) {
+    	state_tasks[i].despawn();
+    }
 }
 
 template<size_t N>
@@ -108,14 +127,14 @@ namespace SetupMode {
 	void respondToInput(void *parameters);
 
 	static Task UNCONNECTED_TASKS[] = {
-		Task(searchingForConnection, "connSearch", defaultTask_attributes, nullptr),
-		Task(unconnectedBlinkBlonk, "blinkBlonk", defaultTask_attributes, nullptr),
-		Task(respondToInput, "inResp", defaultTask_attributes, nullptr)
+		Task(searchingForConnection, {.name = "connSearch", .stack_size = 256, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+		Task(unconnectedBlinkBlonk, {.name = "blinkblonk", .stack_size = 256, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+		Task(respondToInput, {.name = "inputResp", .stack_size = 2048, .priority = (osPriority_t) osPriorityNormal}, nullptr)
 	};
 
 	// Connected Tasks
 	static Task CONNECTED_TASKS[] = {
-		Task(respondToInput, "respToIn", defaultTask_attributes, nullptr)
+		Task(respondToInput, {.name = "inputResp_conn", .stack_size = 2048, .priority = (osPriority_t) osPriorityNormal}, nullptr)
 	};
 
 	// State Machine
@@ -123,12 +142,12 @@ namespace SetupMode {
 		auto operator()() const {
 			return make_transition_table(
 				state<Connected>   <= *state<Unconnected> + event<EnterConnected>,
-				                      state<Unconnected> + sml::on_entry<_> / getEnterStateAction(UNCONNECTED_TASKS),
-				                      state<Unconnected> + sml::on_exit<_> / getExitStateAction(UNCONNECTED_TASKS),
+				                      state<Unconnected> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, UNCONNECTED_TASKS>),
+				                      state<Unconnected> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, UNCONNECTED_TASKS>),
 
 				state<Unconnected> <= state<Connected> + event<EnterUnconnected>,
-				                      state<Connected> + sml::on_entry<_> / getEnterStateAction(CONNECTED_TASKS),
-				                      state<Connected> + sml::on_exit<_> / getExitStateAction(CONNECTED_TASKS)
+				                      state<Connected> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, CONNECTED_TASKS>),
+				                      state<Connected> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, CONNECTED_TASKS>)
 			);
 		}
 	};

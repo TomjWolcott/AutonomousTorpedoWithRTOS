@@ -18,11 +18,8 @@ extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	auto lock = systemModesSM.get_lock();
 	lock->process_event(SystemModes::StartStateMachine{});
 
-	// Threads CANNOT be allowed to exit normally, this exits the thread without a return condition
-//	for (;;) {
-//		osDelay(10000);
-//	}
-	int used_stack_size = uxTaskGetStackHighWaterMark(NULL);
+	lock.unlock();
+
 	osThreadExit();
 
 }

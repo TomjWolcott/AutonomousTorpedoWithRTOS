@@ -30,8 +30,14 @@ public:
 		return *t;
 	}
 
+	void unlock() {
+		if (semaphore != nullptr)
+			xSemaphoreGive(semaphore);
+	}
+
 	~MutexLock() {
-		xSemaphoreGive(semaphore);
+		if (semaphore != nullptr)
+			xSemaphoreGive(semaphore);
 	}
 };
 

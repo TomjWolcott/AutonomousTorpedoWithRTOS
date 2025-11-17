@@ -15,12 +15,6 @@
 #include "semphr.h"
 #include "task.h"
 
-const osThreadAttr_t cppMainTask_attributes = {
-	.name = "cppMainTask",
-	.stack_size = 128 * 4,
-	.priority = (osPriority_t) osPriorityNormal,
-};
-
 #if __cplusplus
 
 extern "C" {

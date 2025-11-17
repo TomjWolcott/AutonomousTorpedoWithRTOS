@@ -10,25 +10,39 @@
 #include "main.h"
 #include <string.h>
 
+static uint32_t stack_expense[3] = {0, 0, 0};
+
 namespace SetupMode {
 	using namespace SetupMode;
 
-	void searchingForConnection(void *parameters) {
-		for (;;) {
+	void __NO_RETURN searchingForConnection(void *parameters) {
+		Task *this_task = (Task *)parameters;
+
+		while (!this_task->is_task_dead) {
+			stack_expense[0] = 4 * uxTaskGetStackHighWaterMark(NULL);
 			uint8_t uart_tx_data[] = PING_MESSAGE;
 			HAL_UART_Transmit_IT(&huart4, uart_tx_data, 6);
 			osDelay(2000);
 		}
+
+		osThreadExit();
 	}
 
-	void unconnectedBlinkBlonk(void *parameters) {
-		for (;;) {
+	void __NO_RETURN unconnectedBlinkBlonk(void *parameters) {
+		Task *this_task = (Task *)parameters;
+
+		while (!this_task->is_task_dead) {
+			stack_expense[1] = 4*uxTaskGetStackHighWaterMark(NULL);
 			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 			osDelay(500);
 		}
+
+		osThreadExit();
 	}
 
-	void respondToInput(void *parameters) {
+	void __NO_RETURN respondToInput(void *parameters) {
+		Task *this_task = (Task *)parameters;
+
 		xRxHandlerTask = xTaskGetCurrentTaskHandle();
 
 		ssd1306_DrawCircle(40, 16, 10, White);
@@ -38,7 +52,7 @@ namespace SetupMode {
 		uint32_t uartDataLen = 0;
 		HAL_UARTEx_ReceiveToIdle_IT(&huart4, UART_RX_BUFFER, UART_RX_BUFFER_LEN);
 
-		for (;;) {
+		while (!this_task->is_task_dead) {
 			BaseType_t xResult = xTaskNotifyWait( pdFALSE, UINT32_MAX, &uartDataLen, portMAX_DELAY);
 
 			ssd1306_Fill(Black);
@@ -61,7 +75,26 @@ namespace SetupMode {
 			ssd1306_UpdateScreen();
 			uartDataLen = 0;
 
+			ssd1306_SetCursor(0, 10);
+			sprintf(oled_s, "");
+			for (uint32_t i = 0; i < 3; i++) {
+				sprintf(oled_s + strlen(oled_s), "%d, ", stack_expense[i]);
+			}
+			ssd1306_WriteString(oled_s, Font_6x8, White);
+			ssd1306_UpdateScreen();
+
 			HAL_UARTEx_ReceiveToIdle_IT(&huart4, UART_RX_BUFFER, UART_RX_BUFFER_LEN);
+
+			auto lock = systemModesSM.get_lock();
+
+			if (lock->is<decltype(sml::state<SM>)>(sml::state<Unconnected>)) {
+				lock->process_event(EnterConnected {});
+			}
+
+			lock.unlock();
+			stack_expense[2] = 4*uxTaskGetStackHighWaterMark(NULL);
 		}
+
+		osThreadExit();
 	}
 }
