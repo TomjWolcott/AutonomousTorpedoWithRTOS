@@ -133,8 +133,13 @@ namespace SetupMode {
 	};
 
 	// Connected Tasks
+	void collectData(void *parameters);
+	void sendData(void *parameters);
+
 	static Task CONNECTED_TASKS[] = {
-		Task(respondToInput, {.name = "inputResp_conn", .stack_size = 2048, .priority = (osPriority_t) osPriorityNormal}, nullptr)
+		Task(collectData, {.name = "collectData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+		Task(sendData, {.name = "sendData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+		Task(respondToInput, {.name = "inputResp_conn", .stack_size = 2048, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 	};
 
 	// State Machine
@@ -189,6 +194,20 @@ namespace SystemModes {
 }
 
 extern MutexLazy<sml::sm<SystemModes::SM>> systemModesSM;
+
+#include "AdcData.hpp"
+#include "AK09940A.hpp"
+#include "ICM42688.hpp"
+
+struct Data {
+	AdcData adcData;
+	AK09940A_Output ak09940a_output;
+	AK09940A_Dev ak09940a_dev;
+	ICM42688_Data icm42688_output;
+	ICM42688 icm42688_dev;
+};
+
+extern MutexLazy<Data> dataMutex;
 
 
 #endif /* INC_STATE_MANAGEMENT_HPP_ */

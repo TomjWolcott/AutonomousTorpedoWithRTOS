@@ -10,6 +10,13 @@
 
 #include "freertos.h"
 #include "semphr.h"
+#include "portmacro.h"
+#include <atomic>
+
+inline bool isInterrupt()
+{
+    return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0 ;
+}
 
 /// Delete the lock after you're done with it or else it will survive until the end of the block
 template<typename T>
@@ -19,7 +26,12 @@ class MutexLock {
 
 public:
 	MutexLock(TickType_t mutex_wait, T *t_other, SemaphoreHandle_t &semaphore_other) : t(t_other), semaphore(semaphore_other) {
-		xSemaphoreTake(semaphore, mutex_wait);
+		if (!xPortIsInsideInterrupt()) {
+			xSemaphoreTake(semaphore, mutex_wait);
+		} else {
+			BaseType_t _xHigherPriorityTaskWoken = pdFALSE;
+			xSemaphoreTakeFromISR(semaphore, &_xHigherPriorityTaskWoken);
+		}
 	}
 
 	T *operator->() {
@@ -31,13 +43,18 @@ public:
 	}
 
 	void unlock() {
-		if (semaphore != nullptr)
-			xSemaphoreGive(semaphore);
+		if (semaphore != nullptr) {
+			if (!xPortIsInsideInterrupt()) {
+				xSemaphoreGive(semaphore);
+			} else {
+				BaseType_t _xHigherPriorityTaskWoken = pdFALSE;
+				xSemaphoreGiveFromISR(semaphore, &_xHigherPriorityTaskWoken);
+			}
+		}
 	}
 
 	~MutexLock() {
-		if (semaphore != nullptr)
-			xSemaphoreGive(semaphore);
+		unlock();
 	}
 };
 
@@ -64,25 +81,36 @@ public:
 
 template<typename T>
 class MutexLazy {
+private:
 	T t;
 	SemaphoreHandle_t semaphore = nullptr;
 	TickType_t mutex_wait = portMAX_DELAY;
 
 public:
-	MutexLazy() {}
+	MutexLazy() {
+	}
 
 	MutexLazy(T t_other) {
 		t = t_other;
 	}
 
-	void init_mutex() {
-		if (!semaphore) {
-			semaphore = xSemaphoreCreateMutex();
+	void ensureInitialized() {
+		if (semaphore == nullptr) {
+			semaphore = xSemaphoreCreateBinary();
+
+			if (!xPortIsInsideInterrupt()) {
+				xSemaphoreGive(semaphore);
+			} else {
+				BaseType_t _xHigherPriorityTaskWoken = pdFALSE;
+				xSemaphoreGiveFromISR(semaphore, &_xHigherPriorityTaskWoken);
+			}
 		}
 	}
 
 	// init_mutex MUST be called before this
 	MutexLock<T> get_lock() {
+		ensureInitialized();
+
 		return MutexLock<T>(mutex_wait, &t, semaphore);
 	}
 };

@@ -26,6 +26,7 @@
 #include "freertos.h"
 #include "task.h"
 #include "semphr.h"
+#include "AdcData.hpp"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -102,6 +103,22 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size) {
 	xTaskNotifyFromISR( xRxHandlerTask, size, eSetBits, &xHigherPriorityTaskWoken);
 	portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
+
+SemaphoreHandle_t xUart4TxBusySemaphore;
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
+//	if (huart->Instance == UART4) {
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        xSemaphoreGiveFromISR( xUart4TxBusySemaphore, &xHigherPriorityTaskWoken );
+	    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+//	}
+}
+
+//SemaphoreHandle_t xI2C1BusySemaphore;
+//SemaphoreHandle_t xI2C2BusySemaphore;
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *handle) {
+	adcInterruptHandler(handle);
+}
 /* USER CODE END 0 */
 
 /**
@@ -171,12 +188,12 @@ int main(void)
 //	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 	HAL_Delay(2000);
 
-/*
-	print_out("INITIALIZE");
+//	print_out("INITIALIZE");
 
 	// ADC initialization
 	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
 	HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+	/*
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADC1_Results_DMA, ADC1_Results_Count);
   HAL_ADC_Start_DMA(&hadc2, (uint32_t*)ADC2_Results_DMA, ADC2_Results_Count);
 
@@ -243,6 +260,8 @@ int main(void)
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
+  xUart4TxBusySemaphore =  xSemaphoreCreateBinary();
+  xSemaphoreGive(xUart4TxBusySemaphore);
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
