@@ -27,7 +27,7 @@
 
 /**
 	MiddleWare name : STMicroelectronics.I-CUBE-STDIO.1.5.0
-	MiddleWare fileName : STMicroelectronics.I-CUBE-STDIO_conf.h
+	MiddleWare fileName : ./STMicroelectronics.I-CUBE-STDIO_conf.h
 	MiddleWare version :
 */
 /*---------- STDIN_UART_HANDLER  -----------*/
