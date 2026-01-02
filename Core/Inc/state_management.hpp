@@ -110,46 +110,8 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal
 };
 
-//namespace ConnectedMode {
-//	using namespace sml;
-//
-//	// Events
-//	struct CalibrationStart {};
-//	struct CalibrationStop {};
-//
-//	// States
-//	class Calibrating {};
-//	class SendingData {};
-//
-//	// Calibrating Tasks
-//	void
-//
-//	// State Machine
-//	struct SM {
-//		auto operator()() const {
-//			return make_transition_table(
-//				state<Calibrating> <= *state<SendingData> + event<CalibrationStart>,
-//					                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, UNCONNECTED_TASKS>),
-//					                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, UNCONNECTED_TASKS>),
-//
-//				state<SendingData> <= state<Calibrating> + event<CalibrationStop>,
-//					                  state<Calibrating> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, CONNECTED_TASKS>),
-//					                  state<Calibrating> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, CONNECTED_TASKS>)
-//			);
-//		}
-//	};
-//}
-
 namespace SetupMode {
 	using namespace sml;
-
-	// Events
-	struct EnterConnected {};
-	struct EnterUnconnected {};
-
-	// States
-	class Unconnected {};
-	class Connected {};
 
 	// Unconnected Tasks
 	void searchingForConnection(void* parameters);
@@ -165,12 +127,52 @@ namespace SetupMode {
 	// Connected Tasks
 	void collectData(void *parameters);
 	void sendData(void *parameters);
+	void calibrationRoutine(void *parameters);
 
-	static Task CONNECTED_TASKS[] = {
-		Task(collectData, {.name = "collectData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-		Task(sendData, {.name = "sendData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-		Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-	};
+	namespace ConnectedMode {
+		static Task CALIBRATING_TASKS[] = {
+			Task(calibrationRoutine, {.name = "calibration", .stack_size = 1024, .priority = (osPriority_t) osPriorityHigh}, nullptr),
+		};
+
+		static Task SENDING_DATA_TASKS[] = {
+			Task(collectData, {.name = "collectData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+			Task(sendData, {.name = "sendData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+			Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+		};
+
+
+		// Events
+		struct CalibrationStart {};
+		struct CalibrationStop {};
+
+		// States
+		class Calibrating {};
+		class SendingData {};
+
+
+		// State Machine
+		struct SM {
+			auto operator()() const {
+				return make_transition_table(
+					state<Calibrating> <= *state<SendingData> + event<CalibrationStart>,
+						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, SENDING_DATA_TASKS>),
+
+					state<SendingData> <= state<Calibrating> + event<CalibrationStop>,
+						                  state<Calibrating> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<1, CALIBRATING_TASKS>),
+						                  state<Calibrating> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<1, CALIBRATING_TASKS>)
+				);
+			}
+		};
+	}
+
+	// Events
+	struct EnterConnected {};
+	struct EnterUnconnected {};
+
+	// States
+	class Unconnected {};
+	using Connected = ConnectedMode::SM;
 
 	// State Machine
 	struct SM {
@@ -180,9 +182,7 @@ namespace SetupMode {
 				                      state<Unconnected> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, UNCONNECTED_TASKS>),
 				                      state<Unconnected> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, UNCONNECTED_TASKS>),
 
-				state<Unconnected> <= state<Connected> + event<EnterUnconnected>,
-				                      state<Connected> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, CONNECTED_TASKS>),
-				                      state<Connected> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, CONNECTED_TASKS>)
+				state<Unconnected> <= state<Connected> + event<EnterUnconnected>
 			);
 		}
 	};

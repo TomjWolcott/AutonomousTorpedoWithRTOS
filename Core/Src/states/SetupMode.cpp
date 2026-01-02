@@ -74,17 +74,16 @@ namespace SetupMode {
 				config_lock.unlock();
 				break;
 			} case MESSAGE_TYPE_ACTION: {
-				ActionMsg action = msg.as_action();
+				ActionMsg action = msg.asAction();
 
 				switch (action.type()) {
 				case ACTION_TYPE_SEND_CONFIG: {
 					HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 					printf("Send config action sent!\n");
 					break;
-				} case ACTION_TYPE_CALIBRATE: {
-					CalibrationActionMsg calibration = action.as_calibration();
+				} case ACTION_TYPE_CALIBRATION_SETTINGS: {
+					CalibrationSettings calibration = action.asCalibrationSettings();
 
-					printf("Calibration action sent!\n");
 					break;
 				} default: {
 
@@ -148,15 +147,102 @@ namespace SetupMode {
 		osThreadExit();
 	}
 
-	void __NO_RETURN magCalibration(void *parameters) {
-		// wait X seconds after unplug OR button press
+	#define WAIT_FOR_UNPLUG_MS 1000
 
-		// run calibration routine
+	using Vec3 = std::array<float, 3>;
 
-		// wait for signal from website to finish or continue with routine
+	void __NO_RETURN calibrationRoutine(void *parameters) {
+		Message msg;
+		std::optional<std::vector<Vec3>> data_opt = std::nullopt;
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
 
-		// upload data / calibration results from routine
+		while (!(msg.type() == MESSAGE_TYPE_ACTION && msg.asAction().type() == ACTION_TYPE_CALIBRATION_SETTINGS)) {
+			msg = Message::receiveWait();
+		}
 
-		// exit back to the sending data mode
+		CalibrationSettings settings = msg.asAction().asCalibrationSettings();
+		bool isUnplugged = settings.startSignal == CALIBRATION_START_SIGNAL_ON_UNPLUG;
+
+		if (isUnplugged) {
+			data_opt.emplace();
+			data_opt.value().reserve(1000 * settings.dataCollectTimeMs * settings.dataCollectRateHz);
+			std::optional<Message> msg_opt = Message::receiveWait(WAIT_FOR_UNPLUG_MS);
+
+			while (msg_opt.has_value())
+				std::optional<Message> msg_opt = Message::receiveWait(WAIT_FOR_UNPLUG_MS);
+
+			osDelay(pdMS_TO_TICKS(settings.waitMsAfterUnplug));
+		} else {
+			while (!(
+				msg.type() == MESSAGE_TYPE_ACTION &&
+				msg.asAction().type() == ACTION_TYPE_CALIBRATION_MSG &&
+				msg.asAction().asCalibrationMsg() == CALIBRATION_MSG_START
+			)) { msg = Message::receiveWait(); }
+		}
+
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+
+		uint32_t startTime = HAL_GetTick();
+		uint32_t loopStartTime;
+		uint32_t waitBetweenMeasurements = 1000 / settings.dataCollectRateHz;
+
+		while (HAL_GetTick() - startTime < settings.dataCollectTimeMs) {
+			loopStartTime = HAL_GetTick();
+
+			Vec3 vector;
+
+			auto lock = dataMutex.get_lock();
+			switch (settings.type) {
+			case CALIBRATION_TYPE_MAG: {
+				AK09940A_Output mag_output = lock->ak09940a_dev.single_measure();
+				for (int i = 0; i < 3; i++) {
+					vector[i] = static_cast<float>(mag_output.mag[i]);
+				}
+				break;
+			} case CALIBRATION_TYPE_ACC: {
+				ICM42688_Data icm_data = lock->icm42688_dev.get_data();
+				for (int i = 0; i < 3; i++) {
+					vector[i] = icm_data.acc[i];
+				}
+				break;
+			} case CALIBRATION_TYPE_GYR: {
+				ICM42688_Data icm_data = lock->icm42688_dev.get_data();
+				for (int i = 0; i < 3; i++) {
+					vector[i] = icm_data.gyro[i];
+				}
+				break;
+			} default: {
+				vector = {0.0f, 0.0f, 0.0f};
+			}}
+			lock.unlock();
+
+			if (isUnplugged) {
+				data_opt.value().push_back(vector);
+			} else {
+				Message::sendCalibrationData(std::span{&vector, 1}, false).send();
+			}
+
+			osDelay(waitBetweenMeasurements - (HAL_GetTick() - loopStartTime));
+		}
+
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
+
+		if (isUnplugged) {
+			Message::receiveWait(WAIT_FOR_UNPLUG_MS);
+			uint32_t index = 0;
+			std::span<Vec3> data_span = data_opt.value();
+
+			const uint32_t maxVec3PerMessage = 250 / 12;
+
+			while (index + maxVec3PerMessage < data_span.size()) {
+				Message::sendCalibrationData(data_span.subspan(index, index + maxVec3PerMessage), false).send();
+
+				index += maxVec3PerMessage;
+			}
+
+			Message::sendCalibrationData(data_span.subspan(index, data_span.size()), false).send();
+		} else {
+			Message::sendCalibrationData(std::span<Vec3>(), true).send();
+		}
 	}
 }

@@ -31,7 +31,8 @@ enum MessageType {
 	MESSAGE_TYPE_SEND_DATA = 2, // Device
 	MESSAGE_TYPE_PING_WITH_MS = 3, // Device
 	MESSAGE_TYPE_SEND_CONFIG = 4, // Device and controller
-	MESSAGE_TYPE_TEXT = 5,
+	MESSAGE_TYPE_TEXT = 5, // Device
+	MESSAGE_TYPE_CALIBRATION_DATA = 6, // Device
 
 	MESSAGE_TYPE_INCORRECT_FORMAT = 255
 };
@@ -39,9 +40,10 @@ enum MessageType {
 // ---------------------------------------------------- Action stuff ---------------------
 enum ActionType {
     ACTION_TYPE_NOOP = 0,
-	ACTION_TYPE_CALIBRATE = 1,
+	ACTION_TYPE_CALIBRATION_SETTINGS = 1,
 	ACTION_TYPE_SPIN_MOTOR = 2,
 	ACTION_TYPE_SEND_CONFIG = 3,
+	ACTION_TYPE_CALIBRATION_MSG = 4,
 
 	ACTION_TYPE_NOT_AN_ACTION = 255
 };
@@ -52,16 +54,23 @@ enum CalibrationType {
 	CALIBRATION_TYPE_GYR = 2,
 };
 
-class CalibrationActionMsg {
-private:
-    std::span<const uint8_t> data;
-public:
-    CalibrationActionMsg(std::span<const uint8_t> data) : data(data) {}
+enum CalibrationStartSignal {
+	CALIBRATION_START_SIGNAL_NOW,
+	CALIBRATION_START_SIGNAL_ON_UNPLUG,
+};
 
-	CalibrationType type();
-	uint16_t waitMsAfterUnplug();
-	uint16_t dataCollectionRateHz();
-	uint16_t dataCollectionTimeMs();
+struct CalibrationSettings {
+	CalibrationType type;
+	CalibrationStartSignal startSignal;
+	uint16_t waitMsAfterUnplug;
+	uint16_t dataCollectRateHz;
+	uint16_t dataCollectTimeMs;
+};
+
+enum CalibrationMsgType {
+	CALIBRATION_MSG_DONE = 0,
+	CALIBRATION_MSG_GO_AGAIN = 1,
+	CALIBRATION_MSG_START = 2
 };
 
 class ActionMsg {
@@ -71,7 +80,8 @@ public:
     ActionMsg(std::span<const uint8_t> data) : data(data) {}
 
 	ActionType type();
-	CalibrationActionMsg as_calibration();
+	CalibrationSettings asCalibrationSettings();
+	CalibrationMsgType asCalibrationMsg();
 };
 
 // ---------------------------------------------------- SendData stuff ---------------------
@@ -97,18 +107,20 @@ struct OtherData {
 class Message {
 public:
 	std::vector<uint8_t> data;
-
+	Message() { }
 	Message(Message& message);
 	Message(std::vector<uint8_t> data) : data(data) {}
 
 	// Messages to be received
 	static Message receiveWait();
+	static std::optional<Message> receiveWait(uint32_t timeout);
 	static Message fromData(uint8_t *from_data, uint32_t len);
 
 	// Messages to be sent
 	static Message ping();
 	static Message pingWithMs();
 	static Message sendData(AdcData *adcData, AK09940A_Output *ak09940a_output, ICM42688_Data *icm42688_data, OtherData *other_data);
+	static Message sendCalibrationData(std::span<std::array<float, 3>> other_data, bool is_finished);
 
 	// Message operations
 	bool isValid();
@@ -118,7 +130,7 @@ public:
 	void send();
 
 	/// Extract Message types, assume Message::type is ALWAYS checked first
-	ActionMsg as_action();
+	ActionMsg asAction();
 };
 
 extern "C" {

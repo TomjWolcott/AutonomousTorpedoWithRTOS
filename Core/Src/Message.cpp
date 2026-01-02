@@ -65,6 +65,16 @@ Message Message::receiveWait() {
 	return Message(mostRecentMessageSent);
 }
 
+std::optional<Message> Message::receiveWait(uint32_t timeout) {
+	EventBits_t bits = xEventGroupWaitBits(xMsgEventGroup, MSG_EVENT_GROUP_BIT, pdTRUE, pdFALSE, pdMS_TO_TICKS(timeout));
+
+	if ((bits & MSG_EVENT_GROUP_BIT) != 0) {
+		return std::optional{mostRecentMessageSent};
+	} else {
+		return std::nullopt;
+	}
+}
+
 Message Message::fromData(uint8_t *from_data, uint32_t len) {
 	std::vector<uint8_t> data;
 
@@ -145,6 +155,33 @@ Message Message::sendData(
 
 	data[4] = data.size();
 	
+	return Message(data);
+}
+
+Message Message::sendCalibrationData(std::span<std::array<float, 3>> other_data, bool is_finished) {
+	std::vector<uint8_t> data = {
+		MESSAGE_HEADER[0],
+		MESSAGE_HEADER[1],
+		MESSAGE_HEADER[2],
+		MESSAGE_HEADER[3],
+		0, // Will be overwritten later
+		MESSAGE_TYPE_SEND_DATA,
+		0, // Will be overwritten later
+		(uint8_t)(is_finished ? 1 : 0)
+	};
+
+	for (std::array<float, 3> vector : other_data) {
+		for (int i = 0; i < 3; i++) {
+			uint32_t data_val = *reinterpret_cast<uint32_t *>(&vector[i]);
+			data.push_back((uint8_t)(data_val >> 24));
+			data.push_back((uint8_t)((data_val >> 16) & 0xFF));
+			data.push_back((uint8_t)((data_val >> 8) & 0xFF));
+			data.push_back((uint8_t)(data_val & 0xFF));
+		}
+	}
+
+	data[4] = data.size();
+
 	return Message(data);
 }
 
@@ -257,7 +294,7 @@ void msgInterruptTxHandler() {
 }
 
 // Action
-ActionMsg Message::as_action() {
+ActionMsg Message::asAction() {
 	return ActionMsg(data);
 }
 
@@ -265,22 +302,18 @@ ActionType ActionMsg::type() {
 	return (ActionType)(data[6]);
 }
 
-CalibrationActionMsg ActionMsg::as_calibration() {
-	return CalibrationActionMsg(data);
+CalibrationSettings ActionMsg::asCalibrationSettings() {
+	CalibrationSettings settings = {};
+
+	settings.type = (CalibrationType)(data[7]);
+	settings.startSignal = (CalibrationStartSignal)(data[8]);
+	settings.waitMsAfterUnplug = (uint16_t)(data[9] << 8) | (uint16_t)(data[10]);
+	settings.dataCollectRateHz = (uint16_t)(data[11] << 8) | (uint16_t)(data[12]);
+	settings.dataCollectTimeMs = (uint16_t)(data[13] << 8) | (uint16_t)(data[14]);
+
+	return settings;
 }
 
-CalibrationType CalibrationActionMsg::type() {
-	return (CalibrationType)(data[7]);
-}
-
-uint16_t CalibrationActionMsg::waitMsAfterUnplug() {
-	return (uint16_t)(data[8] << 8) | (uint16_t)(data[9]);
-}
-
-uint16_t CalibrationActionMsg::dataCollectionRateHz() {
-	return (uint16_t)(data[10] << 8) | (uint16_t)(data[11]);
-}
-
-uint16_t CalibrationActionMsg::dataCollectionTimeMs() {
-	return (uint16_t)(data[12] << 8) | (uint16_t)(data[13]);
+CalibrationMsgType ActionMsg::asCalibrationMsg() {
+	return (CalibrationMsgType)(data[7]);
 }
