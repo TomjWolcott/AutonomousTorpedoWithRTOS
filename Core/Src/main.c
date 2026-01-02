@@ -27,6 +27,7 @@
 #include "task.h"
 #include "semphr.h"
 #include "AdcData.hpp"
+#include "message.hpp"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,7 +37,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-uint8_t MESSAGE_HEADER[4] = {0x11, 0x0F, 0xFF, 0x00};
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -89,28 +89,22 @@ static void MX_TIM3_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t UART_RX_BUFFER[UART_RX_BUFFER_LEN] = { 0 };
-osEventFlagsId_t respondToInputEventFlags = NULL;
-TaskHandle_t xRxHandlerTask = NULL;
-
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size) {
-	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-	xTaskNotifyFromISR( xRxHandlerTask, size, eSetBits, &xHigherPriorityTaskWoken);
-	portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+	if (huart->Instance == UART4) {
+		msgInterruptRxHandler(size);
+	}
 }
 
-SemaphoreHandle_t xUart4TxBusySemaphore;
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
-//	if (huart->Instance == UART4) {
-		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-        xSemaphoreGiveFromISR( xUart4TxBusySemaphore, &xHigherPriorityTaskWoken );
-	    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
-//	}
+	if (huart->Instance == UART4) {
+		msgInterruptTxHandler();
+	}
 }
 
 //SemaphoreHandle_t xI2C1BusySemaphore;
@@ -119,6 +113,30 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *handle) {
 	adcInterruptHandler(handle);
 }
+
+// --------------- printf override -------------------
+//#ifndef __ICCARM__ /* If not IAR */
+//int _write(int file, char *ptr, int len);
+//#endif /* __CC_ARM */
+//
+//#ifdef __ICCARM__
+//int __write(int file, char *ptr, int len)
+//#else
+//int _write(int file, char *ptr, int len)
+//#endif
+//{
+//	return _write_override(file, ptr, len);
+//}
+//
+//#ifdef __CC_ARM
+//int fputc(int ch, FILE *f)
+//{
+//  _write(0, (char *)&ch, 1);
+//
+//  return ch;
+//}
+//#endif
+// --------------- printf override -------------------
 /* USER CODE END 0 */
 
 /**
@@ -260,8 +278,7 @@ int main(void)
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  xUart4TxBusySemaphore =  xSemaphoreCreateBinary();
-  xSemaphoreGive(xUart4TxBusySemaphore);
+  messagesRxTxInit();
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
@@ -282,8 +299,6 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   )
-
-  respondToInputEventFlags = osEventFlagsNew(NULL);
 
   osThreadAttr_t cpp_attributes = {
 		  .name = "cppMainTask",
@@ -1085,7 +1100,24 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+PUTCHAR_PROTOTYPE
+{
 
+  return putchar_override(ch);
+}
+
+#ifdef __cplusplus
+namespace std{
+extern "C"{
+#endif
+int _write(int fd, char *ptr, int len){
+  return _write_override(fd, ptr, len);
+}
+
+#ifdef __cpluscplus
+}
+}
+#endif
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

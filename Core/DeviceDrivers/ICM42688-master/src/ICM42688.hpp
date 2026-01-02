@@ -3,6 +3,7 @@
 
 #include "main.h"
 #include "i2c.hpp"
+#include <vector>
 
 extern DeviceI2C ICM42688P_I2C;
 
@@ -11,7 +12,7 @@ struct ICM42688_Data {
 	float gyro[3];
 	float temp;
 
-	void into_message(uint8_t *msg_data);
+	void into_message(std::vector<uint8_t> &data);
 };
 
 class ICM42688 {
@@ -256,6 +257,15 @@ class ICM42688 {
 	void  setAccelCalX(float bias, float scaleFactor);
 	void  setAccelCalY(float bias, float scaleFactor);
 	void  setAccelCalZ(float bias, float scaleFactor);
+
+	void updateCalibration(const float new_acc_bias[3], const float new_acc_scale[3],
+	                       const float new_gyr_bias[3]) {
+	    for (int i = 0; i < 3; i++) {
+	        _accB[i] = new_acc_bias[i];
+	        _accS[i] = new_acc_scale[i];
+	        _gyrB[i] = new_gyr_bias[i];
+	    }
+	}
 
  protected:
 	// buffer for reading from sensor

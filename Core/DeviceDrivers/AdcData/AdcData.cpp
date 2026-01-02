@@ -60,24 +60,19 @@ AdcData AdcData::from_buffer() {
 	return adc_data;
 }
 
-/// Requires 18 bytes starting at msg_data
-void AdcData::into_message(uint8_t *msg_data) {
-	msg_data[0] = (uint8_t)(data_taken_timestamp_us >> 24);
-	msg_data[1] = (uint8_t)((data_taken_timestamp_us >> 16) & 0xFF);
-	msg_data[2] = (uint8_t)((data_taken_timestamp_us >> 8) & 0xFF);
-	msg_data[3] = (uint8_t)(data_taken_timestamp_us & 0xFF);
+/// Requires 14 bytes starting at msg_data
+void AdcData::into_message(std::vector<uint8_t> &data) {
+	data.push_back((uint8_t)(vref_mv >> 8));
+	data.push_back((uint8_t)(vref_mv & 0xFF));
 
-	msg_data[4] = (uint8_t)(vref_mv >> 8);
-	msg_data[5] = (uint8_t)(vref_mv & 0xFF);
+	data.push_back((uint8_t)(self_temp_C >> 8));
+	data.push_back((uint8_t)(self_temp_C & 0xFF));
 
-	msg_data[6] = (uint8_t)(self_temp_C >> 8);
-	msg_data[7] = (uint8_t)(self_temp_C & 0xFF);
-
-	msg_data[8] = (uint8_t)(batt_mv >> 8);
-	msg_data[9] = (uint8_t)(batt_mv & 0xFF);
+	data.push_back((uint8_t)(batt_mv >> 8));
+	data.push_back((uint8_t)(batt_mv & 0xFF));
 
 	for (int i = 0; i < 4; i++) {
-		msg_data[10 + 2*i] = (uint8_t)(ipropis_mv[i] >> 8);
-		msg_data[11 + 2*i] = (uint8_t)(ipropis_mv[i] & 0xFF);
+		data.push_back((uint8_t)(ipropis_mv[i] >> 8));
+		data.push_back((uint8_t)(ipropis_mv[i] & 0xFF));
 	}
 }

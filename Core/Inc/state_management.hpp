@@ -110,6 +110,36 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal
 };
 
+//namespace ConnectedMode {
+//	using namespace sml;
+//
+//	// Events
+//	struct CalibrationStart {};
+//	struct CalibrationStop {};
+//
+//	// States
+//	class Calibrating {};
+//	class SendingData {};
+//
+//	// Calibrating Tasks
+//	void
+//
+//	// State Machine
+//	struct SM {
+//		auto operator()() const {
+//			return make_transition_table(
+//				state<Calibrating> <= *state<SendingData> + event<CalibrationStart>,
+//					                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, UNCONNECTED_TASKS>),
+//					                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, UNCONNECTED_TASKS>),
+//
+//				state<SendingData> <= state<Calibrating> + event<CalibrationStop>,
+//					                  state<Calibrating> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, CONNECTED_TASKS>),
+//					                  state<Calibrating> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, CONNECTED_TASKS>)
+//			);
+//		}
+//	};
+//}
+
 namespace SetupMode {
 	using namespace sml;
 
@@ -129,7 +159,7 @@ namespace SetupMode {
 	static Task UNCONNECTED_TASKS[] = {
 		Task(searchingForConnection, {.name = "connSearch", .stack_size = 256, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 		Task(unconnectedBlinkBlonk, {.name = "blinkblonk", .stack_size = 256, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-		Task(respondToInput, {.name = "inputResp", .stack_size = 2048, .priority = (osPriority_t) osPriorityNormal}, nullptr)
+		Task(respondToInput, {.name = "inputResp", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr)
 	};
 
 	// Connected Tasks
@@ -139,7 +169,7 @@ namespace SetupMode {
 	static Task CONNECTED_TASKS[] = {
 		Task(collectData, {.name = "collectData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 		Task(sendData, {.name = "sendData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-		Task(respondToInput, {.name = "inputResp_conn", .stack_size = 2048, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+		Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 	};
 
 	// State Machine
@@ -207,7 +237,11 @@ struct Data {
 	ICM42688 icm42688_dev;
 };
 
+#include "config.hpp"
+
+// Both defined in cpp_main.cpp
 extern MutexLazy<Data> dataMutex;
+extern MutexLazy<Config> configMutex;
 
 
 #endif /* INC_STATE_MANAGEMENT_HPP_ */

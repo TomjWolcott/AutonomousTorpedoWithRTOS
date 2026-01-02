@@ -1,4 +1,4 @@
-#include <ICM42688.hpp>
+#include "ICM42688.hpp"
 #include "registers.hpp"
 #include <cstring>
 #include <cmath>
@@ -8,7 +8,10 @@ using namespace ICM42688reg;
 DeviceI2C ICM42688P_I2C = DeviceI2C(&hi2c2, (0x69 << 1));
 
 /// Needs 12 bytes
-void ICM42688_Data::into_message(uint8_t *msg_data) {
+
+void ICM42688_Data::into_message(std::vector<uint8_t> &data) {
+	uint8_t msg_data[12];
+
 	for (int i = 0; i < 3; i++) {
 		uint16_t acc_data = (uint16_t)static_cast<int16_t>(acc[i] * 4096.0);
 		uint16_t gyr_data = (uint16_t)static_cast<int16_t>(gyro[i] * 4096.0);
@@ -17,6 +20,8 @@ void ICM42688_Data::into_message(uint8_t *msg_data) {
 		msg_data[6 + 2*i] = (uint8_t)(gyr_data >> 8);
 		msg_data[7 + 2*i] = (uint8_t)(gyr_data & 0xFF);
 	}
+	
+	data.insert(data.end(), msg_data, msg_data + 12);
 }
 
 ICM42688::ICM42688() {

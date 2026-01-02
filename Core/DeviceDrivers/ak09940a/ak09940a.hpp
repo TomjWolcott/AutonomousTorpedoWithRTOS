@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include "linmath.h"
 #include "i2c.hpp"
+#include <vector>
 
 extern DeviceI2C AK09940A_I2C;
 
@@ -49,7 +50,7 @@ struct AK09940A_Output {
 	float temp;
 	bool data_overrun;
 
-	void into_message(uint8_t *msg_data);
+	void into_message(std::vector<uint8_t> &data);
 };
 
 class AK09940A_Dev {
@@ -80,6 +81,13 @@ public:
 	AK09940A_Output single_measure();
 
 	int print_self_test(char *s);
+
+	void update_calibration(const int32_t new_bias[3], const float new_scale[3]) {
+	    for (int i = 0; i < 3; i++) {
+	        mag_bias[i] = new_bias[i];
+	        mag_scale[i] = new_scale[i];
+	    }
+	}
 };
 
 #endif /* AK09940A_AK09940A_H_ */

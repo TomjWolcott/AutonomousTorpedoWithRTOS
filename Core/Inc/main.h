@@ -58,39 +58,6 @@ extern UART_HandleTypeDef huart4;
 extern UART_HandleTypeDef huart1;
 
 // Interupt variables
-#define UART_RX_BUFFER_LEN 256
-extern uint8_t UART_RX_BUFFER[UART_RX_BUFFER_LEN];
-extern osEventFlagsId_t respondToInputEventFlags;
-extern TaskHandle_t xRxHandlerTask;
-
-extern SemaphoreHandle_t xUart4TxBusySemaphore;
-
-
-enum MessageIds {
-	MESSAGE_ID_PING = 0,
-	MESSAGE_ID_ACTION = 1,
-	MESSAGE_ID_SEND_DATA = 2,
-	MESSAGE_ID_PING_WITH_MS = 3
-};
-
-extern uint8_t MESSAGE_HEADER[4];
-#define PING_MESSAGE {MESSAGE_HEADER[0], MESSAGE_HEADER[1], MESSAGE_HEADER[2], MESSAGE_HEADER[3], 6, MESSAGE_ID_PING}
-#define SEND_DATA_MESSAGE(bytes) {MESSAGE_HEADER[0], MESSAGE_HEADER[1], MESSAGE_HEADER[2], MESSAGE_HEADER[3], bytes, MESSAGE_ID_SEND_DATA}
-#define PING_WITH_MS(ms) {MESSAGE_HEADER[0], MESSAGE_HEADER[1], MESSAGE_HEADER[2], MESSAGE_HEADER[3], 10, MESSAGE_ID_PING_WITH_MS, \
-		(uint8_t)(ms >> 24),\
-		(uint8_t)((ms >> 16) & 0xFF),\
-		(uint8_t)((ms >> 8) & 0xFF),\
-		(uint8_t)(ms & 0xFF)\
-}
-#define IS_VALID_MESSAGE(message, size) (size >= 6 && \
-	message[0] == MESSAGE_HEADER[0] && \
-	message[1] == MESSAGE_HEADER[1] && \
-	message[2] == MESSAGE_HEADER[2] && \
-	message[3] == MESSAGE_HEADER[3] && \
-	message[4] == (uint8_t)size\
-)
-
-#define MESSAGE_TYPE(message) (message[5])
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

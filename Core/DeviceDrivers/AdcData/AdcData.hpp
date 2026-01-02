@@ -12,6 +12,7 @@
 
 #if __cplusplus
 #include "cpp_freertos_helpers.hpp"
+#include <vector>
 
 void initADC();
 
@@ -40,7 +41,7 @@ public:
     uint16_t ipropis_mv[4];   // (adc2, adc2, adc2, adc1)
 
 	static AdcData from_buffer();
-	void into_message(uint8_t *msg_data);
+	void into_message(std::vector<uint8_t> &data);
 };
 
 extern "C" {

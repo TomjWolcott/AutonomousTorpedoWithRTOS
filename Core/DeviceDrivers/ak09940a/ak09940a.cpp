@@ -12,13 +12,13 @@
 DeviceI2C AK09940A_I2C = DeviceI2C(&hi2c2, (0x0F << 1));
 
 /// Needs 12 bytes
-void AK09940A_Output::into_message(uint8_t *msg_data) {
+void AK09940A_Output::into_message(std::vector<uint8_t> &data) {
 	for (int i = 0; i < 3; i++) {
-		uint32_t data = (uint32_t)static_cast<int32_t>(mag[i]);
-		msg_data[0 + 4*i] = (uint8_t)(data >> 24);
-		msg_data[1 + 4*i] = (uint8_t)((data >> 16) & 0xFF);
-		msg_data[2 + 4*i] = (uint8_t)((data >> 8) & 0xFF);
-		msg_data[3 + 4*i] = (uint8_t)(data & 0xFF);
+		uint32_t data_val = (uint32_t)static_cast<int32_t>(mag[i]);
+		data.push_back((uint8_t)(data_val >> 24));
+		data.push_back((uint8_t)((data_val >> 16) & 0xFF));
+		data.push_back((uint8_t)((data_val >> 8) & 0xFF));
+		data.push_back((uint8_t)(data_val & 0xFF));
 	}
 }
 

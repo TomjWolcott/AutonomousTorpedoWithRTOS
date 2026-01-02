@@ -9,6 +9,7 @@
 #include "state_management.hpp"
 #include "main.h"
 #include <string.h>
+#include "Message.hpp"
 
 static uint32_t stack_expense[3] = {0, 0, 0};
 
@@ -20,11 +21,7 @@ namespace SetupMode {
 
 		while (!this_task->is_task_dead) {
 			stack_expense[0] = 4 * uxTaskGetStackHighWaterMark(NULL);
-			uint32_t ms = HAL_GetTick();
-			uint8_t uart_tx_data[] = PING_WITH_MS(ms);
-
-			xSemaphoreTake(xUart4TxBusySemaphore, portMAX_DELAY);
-			HAL_UART_Transmit_IT(&huart4, uart_tx_data, uart_tx_data[4]);
+			Message::pingWithMs().send();
 			osDelay(2000);
 		}
 
@@ -46,68 +43,64 @@ namespace SetupMode {
 	void __NO_RETURN respondToInput(void *parameters) {
 		Task *this_task = (Task *)parameters;
 
-		xRxHandlerTask = xTaskGetCurrentTaskHandle();
-
-//		ssd1306_DrawCircle(40, 16, 10, White);
-//		ssd1306_DrawCircle(44, 16, 10, White);
-//		ssd1306_UpdateScreen();
-
-		ssd1306_SetCursor(0, 0);
-		ssd1306_WriteString("2025 Fall", Font_6x8, White);
-		ssd1306_SetCursor(0, 10);
-		ssd1306_WriteString("Design Review", Font_6x8, White);
-		ssd1306_SetCursor(0, 20);
-		ssd1306_WriteString("AutonoTorpedo V1.3", Font_6x8, White);
-		ssd1306_UpdateScreen();
-
-		uint32_t uartDataLen = 0;
-		HAL_UARTEx_ReceiveToIdle_IT(&huart4, UART_RX_BUFFER, UART_RX_BUFFER_LEN);
-
 		while (!this_task->is_task_dead) {
-			BaseType_t xResult = xTaskNotifyWait( pdFALSE, UINT32_MAX, &uartDataLen, portMAX_DELAY);
+			Message msg = Message::receiveWait();
 
-			ssd1306_Fill(Black);
-			ssd1306_SetCursor(0, 0);
-			int start = 0;
-			char oled_s[100];
-			if (IS_VALID_MESSAGE(UART_RX_BUFFER, uartDataLen)) {
-				sprintf(oled_s, "O[");
-				start = 4;
-			} else {
-				sprintf(oled_s, "X[");
+//			msg.printDataToScreen(0, 0, 4, 6);
+
+			auto sm_lock = systemModesSM.get_lock();
+
+			if (sm_lock->is<decltype(sml::state<SM>)>(sml::state<Unconnected>)) {
+				sm_lock->process_event(EnterConnected {});
 			}
 
-			for (uint32_t i = start; i < uartDataLen && strlen(oled_s) < 27; i++) {
-				sprintf(oled_s + strlen(oled_s), "%02X,", UART_RX_BUFFER[i]);
-			}
+			sm_lock.unlock();
+			
+			printf("Received message: %s\n", msg.typeToString().c_str());
 
-			sprintf(oled_s + strlen(oled_s), "]");
-			ssd1306_WriteString(oled_s, Font_6x8, White);
-			ssd1306_UpdateScreen();
-			uartDataLen = 0;
+			switch (msg.type()) {
+			case MESSAGE_TYPE_SEND_CONFIG: {
+				auto config_lock = configMutex.get_lock();
+				printf("Send config recieved!\n");
 
-			ssd1306_SetCursor(0, 10);
-			sprintf(oled_s, "");
-			for (uint32_t i = 0; i < 3; i++) {
-				sprintf(oled_s + strlen(oled_s), "%d, ", stack_expense[i]);
-			}
-			ssd1306_WriteString(oled_s, Font_6x8, White);
-			ssd1306_UpdateScreen();
+				*config_lock = Config::from_message(msg);
 
-			HAL_UARTEx_ReceiveToIdle_IT(&huart4, UART_RX_BUFFER, UART_RX_BUFFER_LEN);
+//				lock->save_into_flash();
 
-			auto lock = systemModesSM.get_lock();
+				auto data_lock = dataMutex.get_lock();
+				config_lock->update_sensors(&data_lock->ak09940a_dev, &data_lock->icm42688_dev);
+				data_lock.unlock();
 
-			if (lock->is<decltype(sml::state<SM>)>(sml::state<Unconnected>)) {
-				lock->process_event(EnterConnected {});
-			}
+				config_lock.unlock();
+				break;
+			} case MESSAGE_TYPE_ACTION: {
+				ActionMsg action = msg.as_action();
 
-			lock.unlock();
+				switch (action.type()) {
+				case ACTION_TYPE_SEND_CONFIG: {
+					HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+					printf("Send config action sent!\n");
+					break;
+				} case ACTION_TYPE_CALIBRATE: {
+					CalibrationActionMsg calibration = action.as_calibration();
+
+					printf("Calibration action sent!\n");
+					break;
+				} default: {
+
+				}}
+				break;
+			} default: {
+
+			}}
+
 			stack_expense[2] = 4*uxTaskGetStackHighWaterMark(NULL);
 		}
 
 		osThreadExit();
 	}
+
+	static int collectDataCount = 0;
 
 	void __NO_RETURN collectData(void *parameters) {
 		Task *this_task = (Task *)parameters;
@@ -115,10 +108,11 @@ namespace SetupMode {
 		while (!this_task->is_task_dead) {
 			auto lock = dataMutex.get_lock();
 			lock->adcData = AdcData::from_buffer();
-			lock->ak09940a_dev.get_avg_measurement(5, &(lock->ak09940a_output));
-			lock->icm42688_output = lock->icm42688_dev.get_avg_data(5);
+			lock->icm42688_output = lock->icm42688_dev.get_data();
+			lock->ak09940a_output = lock->ak09940a_dev.single_measure();
 			lock.unlock();
-			osDelay(100);
+			collectDataCount++;
+//			osDelay(100);
 			stack_expense[0] = 4 * uxTaskGetStackHighWaterMark(NULL);
 		}
 
@@ -127,25 +121,42 @@ namespace SetupMode {
 
 	void __NO_RETURN sendData(void *parameters) {
 		Task *this_task = (Task *)parameters;
+		uint32_t last_t = HAL_GetTick();
 
 		while (!this_task->is_task_dead) {
-			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+			uint16_t rate_hz = 1000 * collectDataCount / (HAL_GetTick() - last_t);
+			collectDataCount = 0;
+
+			last_t = HAL_GetTick();
+			OtherData other_data = OtherData(last_t, rate_hz);
+
 			auto lock = dataMutex.get_lock();
-			xSemaphoreTake(xUart4TxBusySemaphore, portMAX_DELAY);
-
-			#define DATA_LEN 49
-			uint8_t data[DATA_LEN] = SEND_DATA_MESSAGE(DATA_LEN);
-			data[6] = 0x01 | 0x02 | 0x04; // TODO: Convert into define flags
-			lock->adcData.into_message(data+7);
-			lock->ak09940a_output.into_message(data+25);
-			lock->icm42688_output.into_message(data+37);
-			HAL_UART_Transmit_IT(&huart4, data, DATA_LEN);
-
+			Message msg = Message::sendData(
+					&lock->adcData,
+					&lock->ak09940a_output,
+					&lock->icm42688_output,
+					&other_data
+			);
 			lock.unlock();
-			osDelay(100);
+
+			msg.send();
+
+			osDelay(50);
 			stack_expense[1] = 4 * uxTaskGetStackHighWaterMark(NULL);
 		}
 
 		osThreadExit();
+	}
+
+	void __NO_RETURN magCalibration(void *parameters) {
+		// wait X seconds after unplug OR button press
+
+		// run calibration routine
+
+		// wait for signal from website to finish or continue with routine
+
+		// upload data / calibration results from routine
+
+		// exit back to the sending data mode
 	}
 }
