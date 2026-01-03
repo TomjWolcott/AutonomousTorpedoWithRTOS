@@ -81,6 +81,7 @@ class ICM42688 {
 
 
 	ICM42688_Data get_data(void);
+	ICM42688_Data get_data_raw(void);
 
 	ICM42688_Data get_avg_data(int num_avgs);
 

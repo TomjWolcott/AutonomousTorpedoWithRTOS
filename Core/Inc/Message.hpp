@@ -13,6 +13,7 @@
 #include <vector>
 #include <span>
 #include <optional>
+#include <functional>
 #include <string>
 
 #include "main.h"
@@ -23,7 +24,7 @@
 #define FIRMWARE_VERSION_MAJOR 0
 #define FIRMWARE_VERSION_MINOR 1
 
-#define LARGEST_MESSAGE_TYPE_ID 4
+#define LARGEST_MESSAGE_TYPE_ID 7
 
 enum MessageType {
 	MESSAGE_TYPE_PING = 0, // Device and controller
@@ -33,6 +34,7 @@ enum MessageType {
 	MESSAGE_TYPE_SEND_CONFIG = 4, // Device and controller
 	MESSAGE_TYPE_TEXT = 5, // Device
 	MESSAGE_TYPE_CALIBRATION_DATA = 6, // Device
+	MESSAGE_TYPE_ECHO = 7, // Device
 
 	MESSAGE_TYPE_INCORRECT_FORMAT = 255
 };
@@ -102,6 +104,11 @@ struct OtherData {
 	void into_message(std::vector<uint8_t> &data);
 };
 
+// ---------------------------------------------------- Echo stuff ---------------------
+enum EchoOrigin {
+	ECHO_ORIGIN_CONTROLLER = 0,
+	ECHO_ORIGIN_DEVICE = 1
+};
 
 // ---------------------------------------------------- Message Class ---------------------
 class Message {
@@ -113,6 +120,7 @@ public:
 
 	// Messages to be received
 	static Message receiveWait();
+	static Message receiveWait(std::function<bool(Message &)> isExpectedMessage);
 	static std::optional<Message> receiveWait(uint32_t timeout);
 	static Message fromData(uint8_t *from_data, uint32_t len);
 
@@ -121,6 +129,8 @@ public:
 	static Message pingWithMs();
 	static Message sendData(AdcData *adcData, AK09940A_Output *ak09940a_output, ICM42688_Data *icm42688_data, OtherData *other_data);
 	static Message sendCalibrationData(std::span<std::array<float, 3>> other_data, bool is_finished);
+	static Message echo();
+	static Message echo(std::vector<uint8_t> v);
 
 	// Message operations
 	bool isValid();
@@ -131,6 +141,8 @@ public:
 
 	/// Extract Message types, assume Message::type is ALWAYS checked first
 	ActionMsg asAction();
+	EchoOrigin asEchoOrigin();
+
 };
 
 extern "C" {

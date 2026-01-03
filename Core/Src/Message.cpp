@@ -65,6 +65,16 @@ Message Message::receiveWait() {
 	return Message(mostRecentMessageSent);
 }
 
+Message Message::receiveWait(std::function<bool(Message &)> isExpectedMessage) {
+	Message msg = receiveWait();
+
+	while (!isExpectedMessage(msg)) {
+		msg = receiveWait();
+	}
+
+	return msg;
+}
+
 std::optional<Message> Message::receiveWait(uint32_t timeout) {
 	EventBits_t bits = xEventGroupWaitBits(xMsgEventGroup, MSG_EVENT_GROUP_BIT, pdTRUE, pdFALSE, pdMS_TO_TICKS(timeout));
 
@@ -77,8 +87,9 @@ std::optional<Message> Message::receiveWait(uint32_t timeout) {
 
 Message Message::fromData(uint8_t *from_data, uint32_t len) {
 	std::vector<uint8_t> data;
+	uint8_t size = from_data[4];
 
-	data.assign(from_data, from_data + len);
+	data.assign(from_data, from_data + (uint32_t)(size));
 
 	return Message(data);
 }
@@ -94,7 +105,7 @@ Message Message::pingWithMs() {
 
 	std::vector<uint8_t> data = {
 		MESSAGE_HEADER[0], MESSAGE_HEADER[1], MESSAGE_HEADER[2], MESSAGE_HEADER[3],
-		10, MESSAGE_TYPE_PING,
+		10, MESSAGE_TYPE_PING_WITH_MS,
 		(uint8_t)(ms >> 24),
 		(uint8_t)((ms >> 16) & 0xFF),
 		(uint8_t)((ms >> 8) & 0xFF),
@@ -166,7 +177,6 @@ Message Message::sendCalibrationData(std::span<std::array<float, 3>> other_data,
 		MESSAGE_HEADER[3],
 		0, // Will be overwritten later
 		MESSAGE_TYPE_SEND_DATA,
-		0, // Will be overwritten later
 		(uint8_t)(is_finished ? 1 : 0)
 	};
 
@@ -179,6 +189,28 @@ Message Message::sendCalibrationData(std::span<std::array<float, 3>> other_data,
 			data.push_back((uint8_t)(data_val & 0xFF));
 		}
 	}
+
+	data[4] = data.size();
+
+	return Message(data);
+}
+
+Message Message::echo() {
+	return echo(std::vector<uint8_t>());
+}
+
+Message Message::echo(std::vector<uint8_t> v) {
+	std::vector<uint8_t> data = {
+		MESSAGE_HEADER[0],
+		MESSAGE_HEADER[1],
+		MESSAGE_HEADER[2],
+		MESSAGE_HEADER[3],
+		0, // Will be overwritten later
+		MESSAGE_TYPE_SEND_DATA,
+		ECHO_ORIGIN_DEVICE
+	};
+
+	data.insert(data.end(), v.begin(), v.end());
 
 	data[4] = data.size();
 
@@ -256,6 +288,8 @@ std::string Message::typeToString() {
 			return "SEND_CONFIG";
 		case MESSAGE_TYPE_TEXT:
 			return "TEXT";
+		case MESSAGE_TYPE_ECHO:
+			return "ECHO";
 		default:
 			return "INCORRECT_FORMAT";
 	}
@@ -316,4 +350,9 @@ CalibrationSettings ActionMsg::asCalibrationSettings() {
 
 CalibrationMsgType ActionMsg::asCalibrationMsg() {
 	return (CalibrationMsgType)(data[7]);
+}
+
+// Echo
+EchoOrigin Message::asEchoOrigin() {
+	return (EchoOrigin)(data[6]);
 }

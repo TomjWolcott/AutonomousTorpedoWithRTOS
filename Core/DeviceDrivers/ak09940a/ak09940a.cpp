@@ -138,7 +138,20 @@ AK09940A_Output AK09940A_Dev::single_measure() {
 	return output;
 }
 
-int AK09940A_Dev::read_measurement(AK09940A_Output *output, uint32_t timeout_ms) {
+AK09940A_Output AK09940A_Dev::single_measure_raw() {
+	AK09940A_OperationMode prev_op_mode = operation_mode;
+	AK09940A_Output output = { 0 };
+	operation_mode = AK09940A_SingleMeasurement;
+	set_control_registers();
+
+	read_measurement_raw(&output, 100);
+
+	operation_mode = prev_op_mode;
+
+	return output;
+}
+
+int AK09940A_Dev::read_measurement_raw(AK09940A_Output *output, uint32_t timeout_ms) {
 	uint8_t data_ready = 0;
 	uint32_t time = HAL_GetTick();
 
@@ -172,14 +185,22 @@ int AK09940A_Dev::read_measurement(AK09940A_Output *output, uint32_t timeout_ms)
 			256 * (int32_t)(data[3*i+1]) +
 			65536 * ((int32_t)(data[3*i+2] & 1) - (int32_t)(data[3*i+2] & 2))
 		);
-
-        output->mag[i] = (int32_t)((float)(output->mag[i] - mag_bias[i]) * mag_scale[i]);
 	}
 
 	output->temp = 30.0 - ((float)(data[9] & 0x7F) - (float)(data[9] & 0x80)) / 1.7;
 	output->data_overrun = st2_data & 1;
 
 	return 0;
+}
+
+int AK09940A_Dev::read_measurement(AK09940A_Output *output, uint32_t timeout_ms) {
+	int fn_output = read_measurement_raw(output, timeout_ms);
+
+	for (int i = 0; i < 3; i++) {
+	    output->mag[i] = (int32_t)((float)(output->mag[i] - mag_bias[i]) * mag_scale[i]);
+	}
+
+	return fn_output;
 }
 
 int AK09940A_Dev::print_self_test(char *s) {

@@ -191,7 +191,12 @@ namespace SetupMode {
 namespace SystemModes {
 	using namespace sml;
 
-	// Relevant functions
+	// Setup Tasks
+	void repeatEchoes(void* parameters);
+
+	static Task SETUP_TASKS[] = {
+		Task(repeatEchoes, {.name = "echoReply", .stack_size = 400, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+	};
 
 	// Events
 	struct EnterActive {};
@@ -212,6 +217,9 @@ namespace SystemModes {
 				// toState <= fromState + event [guard] / action:
 				// On `Event` if `guard` is true perform `action` and transition from `fromState` to `toState`
 				state<Setup>  <= *idle + event<StartStateMachine>,
+					state<Setup> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<1, SETUP_TASKS>),
+					state<Setup> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<1, SETUP_TASKS>),
+
 				state<Active> <= state<Setup> + event<EnterActive>,
 
 				state<Sleep>  <= state<Active> + event<EnterSleep>,

@@ -64,6 +64,7 @@ private:
 
 	int set_power_down();
 	int read_measurement(AK09940A_Output *output, uint32_t timeout_ms);
+	int read_measurement_raw(AK09940A_Output *output, uint32_t timeout_ms);
 
 public:
 	int update_offset_registers();
@@ -79,6 +80,7 @@ public:
 	bool big_magnet_nearby();
 
 	AK09940A_Output single_measure();
+	AK09940A_Output single_measure_raw();
 
 	int print_self_test(char *s);
 

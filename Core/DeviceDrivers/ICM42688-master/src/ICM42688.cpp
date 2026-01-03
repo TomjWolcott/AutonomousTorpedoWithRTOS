@@ -119,6 +119,29 @@ ICM42688_Data ICM42688::get_data(void) {
 	return data;  // Success
 }
 
+ICM42688_Data ICM42688::get_data_raw(void) {
+	ICM42688_Data data = { 0 };
+
+	if (getRawAGT() < 0) {
+//		data.acc[0] = 0.0f;
+//		data.acc[1] = 0.0f;
+//		data.acc[2] = 0.0f;
+//		data.gyro[0] = 0.0f;
+//		data.gyro[1] = 0.0f;
+//		data.gyro[2] = 0.0f;
+//		data.temp = 0.0f;
+		return data;  // Error
+	}
+
+	for (int i = 0; i < 3; i++) {
+		data.acc[i] = (_acc[i] * _accelScale);
+		data.gyro[i] = (_gyr[i] * _gyroScale);
+	}
+	data.temp = _t;
+
+	return data;  // Success
+}
+
 /* sets the accelerometer full scale range to values other than default */
 int ICM42688::setAccelFS(AccelFS fssel) {
 	setBank(0);
