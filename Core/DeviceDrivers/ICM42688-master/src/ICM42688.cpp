@@ -134,8 +134,8 @@ ICM42688_Data ICM42688::get_data_raw(void) {
 	}
 
 	for (int i = 0; i < 3; i++) {
-		data.acc[i] = (_acc[i] * _accelScale);
-		data.gyro[i] = (_gyr[i] * _gyroScale);
+		data.acc[i] = (_rawAcc[i] * _accelScale);
+		data.gyro[i] = (_rawGyr[i] * _gyroScale);
 	}
 	data.temp = _t;
 

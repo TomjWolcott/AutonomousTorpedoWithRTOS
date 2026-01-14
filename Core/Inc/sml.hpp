@@ -2908,7 +2908,7 @@ constexpr auto operator""_e() {
 #endif
 }  // namespace literals
 #endif
-__BOOST_SML_UNUSED static front::state<back::terminate_state> X;
+//__BOOST_SML_UNUSED static front::state<back::terminate_state> X; // I'm commenting this out since it conflicts with qvm
 __BOOST_SML_UNUSED static front::history_state H;
 __BOOST_SML_UNUSED static front::actions::defer defer;
 __BOOST_SML_UNUSED static front::actions::process process;

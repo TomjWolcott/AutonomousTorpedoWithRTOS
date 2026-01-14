@@ -10,6 +10,7 @@
 #include "main.h"
 #include <string.h>
 #include "Message.hpp"
+#include "qvm_lite.hpp"
 
 static uint32_t stack_expense[3] = {0, 0, 0};
 
@@ -81,23 +82,33 @@ namespace SetupMode {
 				auto config_lock = configMutex.get_lock();
 				printf("Send config recieved!\n");
 
-				*config_lock = Config::from_message(msg);
+				*config_lock = msg.asConfig();
+				float x = config_lock->madgwickBeta;
 
-//				lock->save_into_flash();
+				config_lock->save_into_flash();
 
-				auto data_lock = dataMutex.get_lock();
-				config_lock->update_sensors(&data_lock->ak09940a_dev, &data_lock->icm42688_dev);
-				data_lock.unlock();
+//				auto data_lock = dataMutex.get_lock();
+//				config_lock->update_sensors(&data_lock->ak09940a_dev, &data_lock->icm42688_dev);
+//				data_lock.unlock();
 
 				config_lock.unlock();
+
+				auto data_lock = dataMutex.get_lock();
+				data_lock->localization.tuning_parameter = x;
+				data_lock.unlock();
 				break;
 			} case MESSAGE_TYPE_ACTION: {
 				ActionMsg action = msg.asAction();
 
 				switch (action.type()) {
 				case ACTION_TYPE_SEND_CONFIG: {
-					HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-					printf("Send config action sent!\n");
+					printf("SENDING CONFIG NOW!!\n");
+					auto config_lock = configMutex.get_lock();
+					Message msg = Message::sendConfig(*config_lock);
+					config_lock.unlock();
+
+					msg.send();
+					printf("SENT!!\n");
 					break;
 				} case ACTION_TYPE_CALIBRATION_MSG: {
 					printf("STARTING CALIBRATION ROUTINE!\n");
@@ -126,11 +137,19 @@ namespace SetupMode {
 		Task *this_task = (Task *)parameters;
 
 		while (!this_task->is_task_dead) {
-			auto lock = dataMutex.get_lock();
-			lock->adcData = AdcData::from_buffer();
-			lock->icm42688_output = lock->icm42688_dev.get_data();
-			lock->ak09940a_output = lock->ak09940a_dev.single_measure();
-			lock.unlock();
+			auto data_lock = dataMutex.get_lock();
+			auto config_lock = configMutex.get_lock();
+			data_lock->adcData = AdcData::from_buffer();
+			data_lock->icm42688_output = data_lock->icm42688_dev.get_data_raw();
+			data_lock->ak09940a_output = data_lock->ak09940a_dev.single_measure_raw();
+			data_lock->localization.update(
+				config_lock->calibrated_acc(data_lock->icm42688_output.acc),
+				config_lock->calibrated_mag(data_lock->ak09940a_output.mag),
+				config_lock->calibrated_gyro(data_lock->icm42688_output.gyro)
+			);
+
+			config_lock.unlock();
+			data_lock.unlock();
 			collectDataCount++;
 //			osDelay(100);
 			stack_expense[0] = 4 * uxTaskGetStackHighWaterMark(NULL);
@@ -151,11 +170,13 @@ namespace SetupMode {
 			OtherData other_data = OtherData(last_t, rate_hz);
 
 			auto lock = dataMutex.get_lock();
+			lock->localization_output = lock->localization.output();
 			Message msg = Message::sendData(
-					&lock->adcData,
-					&lock->ak09940a_output,
-					&lock->icm42688_output,
-					&other_data
+					lock->adcData,
+					lock->ak09940a_output,
+					lock->icm42688_output,
+					other_data,
+					lock->localization_output
 			);
 			lock.unlock();
 
@@ -168,10 +189,60 @@ namespace SetupMode {
 		osThreadExit();
 	}
 
+	void __NO_RETURN debugPrinter(void *parameters) {
+		Task *this_task = (Task *)parameters;
+//		Instant prevInstant = getInstant();
+
+		while (!this_task->is_task_dead) {
+//			auto data_lock = dataMutex.get_lock();
+//			auto config_lock = configMutex.get_lock();
+//
+//			vec<float,3> acc = config_lock->calibrated_acc(data_lock->icm42688_output.acc);
+//			vec<float,3> mag = config_lock->calibrated_mag(data_lock->ak09940a_output.mag);
+//			vec<float,3> gyr = config_lock->calibrated_gyro(data_lock->icm42688_output.gyro);
+//
+//			config_lock.unlock();
+//
+//			LocalizationOutput local_out = data_lock->localization_output;
+//			float beta = data_lock->localization.tuning_parameter;
+//			data_lock.unlock();
+//
+//			printf("Tuning param: %.5f", beta);
+
+//
+//			printf("cal acc: [%.3f, %.3f, %.3f], cal mag: [%.3f, %.3f, %.3f], cal gyr: [%.3f, %.3f, %.3f]\n",
+//				X(acc), Y(acc), Z(acc),
+//				X(mag), Y(mag), Z(mag),
+//				X(gyr), Y(gyr), Z(gyr)
+//			);
+
+//			printf(
+//				"quat: [%.5f, %.5f, %.5f | %.5f], pos: [%.5f, %.5f, %.5f]\n",
+//				X(local_out.orientation), Y(local_out.orientation), Z(local_out.orientation), S(local_out.orientation),
+//				X(local_out.position), Y(local_out.position), Z(local_out.position)
+//			);
+//			std::vector<uint8_t> data;
+//
+//			local_out.into_message(data);
+//
+//			printf("[ ");
+//
+//			for (unsigned int i = 0; i < data.size(); i++) {
+//				printf("%02X ", data[i]);
+//			}
+//
+//			printf("]\n");
+
+			osDelay(500);
+		}
+
+		osThreadExit();
+	}
+
 	#define WAIT_FOR_UNPLUG_MS 1000
 
 	void printCalibRoutine(int i, Message &msg) {
-		printf("CALIB @ %d (%s)\n", i, msg.typeToString().c_str());
+		printf("CALIB @ %d (%s: %s)\n", i, msg.typeToString().c_str(), msg.dataToString().c_str());
 	}
 
 	using Vec3 = std::array<float, 3>;
@@ -197,7 +268,7 @@ namespace SetupMode {
 				std::optional<Message> msg_opt = Message::receiveWait(WAIT_FOR_UNPLUG_MS);
 				printCalibRoutine(2, msg);
 
-				if (!msg_opt.has_value() && isUnplugged) {
+				if (isUnplugged && !msg_opt.has_value() && !isDeviceConnected(DEFAULT_PING_WAIT_MS)) {
 					osDelay(pdMS_TO_TICKS(settings.waitMsAfterUnplug));
 					break;
 				}
@@ -262,6 +333,9 @@ namespace SetupMode {
 				} else {
 					Message::sendCalibrationData(std::span{&vector, 1}, false).send();
 				}
+//				Message x = Message::sendCalibrationData(std::span{&vector, 1}, false);
+//
+//				printf("vector: [%.3f, %.3f, %.3f] -- %s\n", vector[0], vector[1], vector[2], x.dataToString().c_str());
 
 				osDelay(waitBetweenMeasurements - (HAL_GetTick() - loopStartTime));
 			}
@@ -269,7 +343,8 @@ namespace SetupMode {
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
 
 			if (isUnplugged) {
-				Message::receiveWait();
+				while (!isDeviceConnected(DEFAULT_PING_WAIT_MS)) {}
+
 				uint32_t index = 0;
 				std::span<Vec3> data_span = data_opt.value();
 

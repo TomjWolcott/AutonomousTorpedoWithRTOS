@@ -28,6 +28,7 @@
 #include "semphr.h"
 #include "AdcData.hpp"
 #include "message.hpp"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,6 +57,7 @@ I2C_HandleTypeDef hi2c2;
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim15;
 
 UART_HandleTypeDef huart4;
@@ -86,6 +88,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM6_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -112,6 +115,21 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *handle) {
 	adcInterruptHandler(handle);
+}
+
+
+Instant getInstant() {
+	uint32_t tick_us = TIM6->CNT;
+
+
+	return (Instant){ HAL_GetTick(), tick_us };
+}
+
+uint32_t elapsed_us(Instant start, Instant end) {
+    int32_t d_ms = (int32_t)end.tick_ms - (int32_t)start.tick_ms;
+    int32_t d_us = (int32_t)end.tick_us - (int32_t)start.tick_us;
+
+    return (uint32_t)(d_us + 1000 * d_ms - 1000 * (d_us / 1000));
 }
 
 // --------------- printf override -------------------
@@ -179,6 +197,7 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM1_Init();
   MX_TIM3_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 //  HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_0);
   NVIC_SetPriorityGrouping(0);
@@ -207,6 +226,7 @@ int main(void)
 	HAL_Delay(2000);
 
 //	print_out("INITIALIZE");
+	HAL_TIM_Base_Start(&htim6);
 
 	// ADC initialization
 	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
@@ -843,6 +863,44 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 128-1;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 9999;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
   * @brief TIM15 Initialization Function
   * @param None
   * @retval None
@@ -1168,6 +1226,17 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+
+  TaskHandle_t xErroringTask = xTaskGetCurrentTaskHandle();
+
+  if (xErroringTask == NULL) {
+	  printf("ERROR: Error_Handler() called from unknown place\n");
+	  HAL_Delay(1000);
+  } else {
+	  printf("ERROR: Error_Handler() called from task: \"%s\"\n", pcTaskGetName(xErroringTask));
+	  osDelay(1000);
+  }
+
   __disable_irq();
   while (1)
   {

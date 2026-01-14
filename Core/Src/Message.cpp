@@ -11,6 +11,7 @@
 #include "queue.h"
 #include "event_groups.h"
 #include <cstdio>
+#include <cstring>
 
 #define MSG_RX_DATA_LEN 300
 static uint8_t messageDataRx[MSG_RX_DATA_LEN];
@@ -55,10 +56,6 @@ int _write_override(int fd, char *ptr, int len) {
 
 // ----------------------------------- Normal Messages ---------------------------------
 
-Message::Message(Message& message) {
-	data = message.data;
-}
-
 Message Message::receiveWait() {
 	xEventGroupWaitBits(xMsgEventGroup, MSG_EVENT_GROUP_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
 
@@ -73,6 +70,18 @@ Message Message::receiveWait(std::function<bool(Message &)> isExpectedMessage) {
 	}
 
 	return msg;
+}
+
+std::optional<Message> Message::receiveWait(std::function<bool(Message &)> isExpectedMessage, uint32_t timeout) {
+	uint32_t start = HAL_GetTick();
+	std::optional<Message> msg_opt = receiveWait(timeout);
+
+	while (msg_opt.has_value() && !isExpectedMessage(msg_opt.value())) {
+		uint32_t dt = HAL_GetTick() - start;
+		msg_opt = receiveWait(timeout - dt);
+	}
+
+	return msg_opt;
 }
 
 std::optional<Message> Message::receiveWait(uint32_t timeout) {
@@ -129,10 +138,11 @@ void OtherData::into_message(std::vector<uint8_t> &data) {
 }
 
 Message Message::sendData(
-	AdcData *adcData,
-	AK09940A_Output *ak09940a_output,
-	ICM42688_Data *icm42688_data,
-	OtherData *other_data
+	std::optional<AdcData> adcData,
+	std::optional<AK09940A_Output> ak09940a_output,
+	std::optional<ICM42688_Data> icm42688_data,
+	std::optional<OtherData> other_data,
+	std::optional<LocalizationOutput> localization_output
 ) {
 	std::vector<uint8_t> data = {
 		MESSAGE_HEADER[0],
@@ -144,23 +154,28 @@ Message Message::sendData(
 		0 // Will be overwritten later
 	};
 
-	if (adcData != nullptr) {
-		adcData->into_message(data);
+	if (adcData.has_value()) {
+		adcData.value().into_message(data);
 		data[6] |= SendDataAdcData;
 	}
 
-	if (ak09940a_output != nullptr) {
-		ak09940a_output->into_message(data);
+	if (ak09940a_output.has_value()) {
+		ak09940a_output.value().into_message(data);
 		data[6] |= SendDataMag;
 	}
 
-	if (icm42688_data != nullptr) {
-		icm42688_data->into_message(data);
+	if (icm42688_data.has_value()) {
+		icm42688_data.value().into_message(data);
 		data[6] |= SendDataAccGyro;
 	}
 
-	if (other_data != nullptr) {
-		other_data->into_message(data);
+	if (localization_output.has_value()) {
+		localization_output.value().into_message(data);
+		data[6] |= SendDataLocalizedData;
+	}
+
+	if (other_data.has_value()) {
+		other_data.value().into_message(data);
 		data[6] |= SendDataOtherInfo;
 	}
 
@@ -176,19 +191,36 @@ Message Message::sendCalibrationData(std::span<std::array<float, 3>> other_data,
 		MESSAGE_HEADER[2],
 		MESSAGE_HEADER[3],
 		0, // Will be overwritten later
-		MESSAGE_TYPE_SEND_DATA,
+		MESSAGE_TYPE_CALIBRATION_DATA,
 		(uint8_t)(is_finished ? 1 : 0)
 	};
 
 	for (std::array<float, 3> vector : other_data) {
 		for (int i = 0; i < 3; i++) {
-			uint32_t data_val = *reinterpret_cast<uint32_t *>(&vector[i]);
+			uint32_t data_val = std::bit_cast<uint32_t>(vector[i]);
 			data.push_back((uint8_t)(data_val >> 24));
 			data.push_back((uint8_t)((data_val >> 16) & 0xFF));
 			data.push_back((uint8_t)((data_val >> 8) & 0xFF));
 			data.push_back((uint8_t)(data_val & 0xFF));
 		}
 	}
+
+	data[4] = data.size();
+
+	return Message(data);
+}
+
+Message Message::sendConfig(Config &config) {
+	std::vector<uint8_t> data = {
+		MESSAGE_HEADER[0],
+		MESSAGE_HEADER[1],
+		MESSAGE_HEADER[2],
+		MESSAGE_HEADER[3],
+		0, // Will be overwritten later
+		MESSAGE_TYPE_SEND_CONFIG
+	};
+
+	config.into_msg_data(data);
 
 	data[4] = data.size();
 
@@ -206,7 +238,7 @@ Message Message::echo(std::vector<uint8_t> v) {
 		MESSAGE_HEADER[2],
 		MESSAGE_HEADER[3],
 		0, // Will be overwritten later
-		MESSAGE_TYPE_SEND_DATA,
+		MESSAGE_TYPE_ECHO,
 		ECHO_ORIGIN_DEVICE
 	};
 
@@ -295,6 +327,17 @@ std::string Message::typeToString() {
 	}
 }
 
+std::string Message::dataToString() {
+	std::string s = "[ ";
+	for (uint8_t byte : data) {
+		char byte_s[4];
+		sprintf(byte_s, "%02X ", byte);
+		s += byte_s;
+	}
+
+	return s + "]";
+}
+
 void Message::send() {
 	xSemaphoreTake(xMessageDataTxBusySemaphore, portMAX_DELAY);
 	copy(data.begin(), data.end(), messageDataTx);
@@ -355,4 +398,22 @@ CalibrationMsgType ActionMsg::asCalibrationMsg() {
 // Echo
 EchoOrigin Message::asEchoOrigin() {
 	return (EchoOrigin)(data[6]);
+}
+
+const uint8_t DEVICE_CONNECTED_CHECK_DATA[] = {0x12, 0x34, 0x56};
+
+bool isDeviceConnected(uint32_t echo_timeout) {
+	std::vector<uint8_t> data = {0x12, 0x34, 0x56};
+	Message echo_out = Message::echo(data);
+
+	echo_out.send();
+
+	return Message::receiveWait([&echo_out](Message &msg) {
+		return msg.data == echo_out.data;
+	}, echo_timeout).has_value();
+}
+
+// Config
+Config Message::asConfig() {
+	return Config::from_msg_data(data);
 }

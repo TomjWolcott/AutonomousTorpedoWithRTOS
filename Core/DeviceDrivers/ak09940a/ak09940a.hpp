@@ -10,7 +10,6 @@
 
 #include "main.h"
 #include <stdbool.h>
-#include "linmath.h"
 #include "i2c.hpp"
 #include <vector>
 

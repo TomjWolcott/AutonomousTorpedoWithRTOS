@@ -15,11 +15,14 @@
 #include <optional>
 #include <functional>
 #include <string>
+#include <bit>
 
 #include "main.h"
 #include "AdcData.hpp"
 #include "ak09940a.hpp"
 #include "ICM42688.hpp"
+#include "config.hpp"
+#include "localization.hpp"
 
 #define FIRMWARE_VERSION_MAJOR 0
 #define FIRMWARE_VERSION_MINOR 1
@@ -110,25 +113,42 @@ enum EchoOrigin {
 	ECHO_ORIGIN_DEVICE = 1
 };
 
+#define DEFAULT_PING_WAIT_MS 100
+
+bool isDeviceConnected(uint32_t echo_timeout);
+
 // ---------------------------------------------------- Message Class ---------------------
 class Message {
 public:
 	std::vector<uint8_t> data;
+    Message(const Message&) = default;
+    Message& operator=(const Message&) = default;
+
+    Message(Message&&) = default;
+    Message& operator=(Message&&) = default;
+
+    Message(std::vector<uint8_t> data) : data(std::move(data)) {}
 	Message() { }
-	Message(Message& message);
-	Message(std::vector<uint8_t> data) : data(data) {}
 
 	// Messages to be received
 	static Message receiveWait();
 	static Message receiveWait(std::function<bool(Message &)> isExpectedMessage);
+	static std::optional<Message> receiveWait(std::function<bool(Message &)> isExpectedMessage, uint32_t timeout);
 	static std::optional<Message> receiveWait(uint32_t timeout);
 	static Message fromData(uint8_t *from_data, uint32_t len);
 
 	// Messages to be sent
 	static Message ping();
 	static Message pingWithMs();
-	static Message sendData(AdcData *adcData, AK09940A_Output *ak09940a_output, ICM42688_Data *icm42688_data, OtherData *other_data);
+	static Message sendData(
+		std::optional<AdcData> adcData,
+		std::optional<AK09940A_Output> ak09940a_output,
+		std::optional<ICM42688_Data> icm42688_data,
+		std::optional<OtherData> other_data,
+		std::optional<LocalizationOutput> localization_output
+	);
 	static Message sendCalibrationData(std::span<std::array<float, 3>> other_data, bool is_finished);
+	static Message sendConfig(Config &config);
 	static Message echo();
 	static Message echo(std::vector<uint8_t> v);
 
@@ -137,12 +157,13 @@ public:
 	MessageType type();
 	void printDataToDisplay(uint8_t x, uint8_t y, uint8_t rows, uint8_t cols);
 	std::string typeToString();
+	std::string dataToString();
 	void send();
 
 	/// Extract Message types, assume Message::type is ALWAYS checked first
 	ActionMsg asAction();
 	EchoOrigin asEchoOrigin();
-
+	Config asConfig();
 };
 
 extern "C" {

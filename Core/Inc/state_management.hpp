@@ -128,6 +128,7 @@ namespace SetupMode {
 	void collectData(void *parameters);
 	void sendData(void *parameters);
 	void calibrationRoutine(void *parameters);
+	void debugPrinter(void *parameters);
 
 	namespace ConnectedMode {
 		static Task CALIBRATING_TASKS[] = {
@@ -138,6 +139,7 @@ namespace SetupMode {
 			Task(collectData, {.name = "collectData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(sendData, {.name = "sendData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+			Task(debugPrinter, {.name = "debugPrinter", .stack_size = 600, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 		};
 
 
@@ -155,8 +157,8 @@ namespace SetupMode {
 			auto operator()() const {
 				return make_transition_table(
 					state<Calibrating> <= *state<SendingData> + event<CalibrationStart>,
-						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, SENDING_DATA_TASKS>),
-						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<4, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<4, SENDING_DATA_TASKS>),
 
 					state<SendingData> <= state<Calibrating> + event<CalibrationStop>,
 						                  state<Calibrating> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<1, CALIBRATING_TASKS>),
@@ -236,6 +238,7 @@ extern MutexLazy<sml::sm<SystemModes::SM>> systemModesSM;
 #include "AdcData.hpp"
 #include "AK09940A.hpp"
 #include "ICM42688.hpp"
+#include "localization.hpp"
 
 struct Data {
 	AdcData adcData;
@@ -243,6 +246,8 @@ struct Data {
 	AK09940A_Dev ak09940a_dev;
 	ICM42688_Data icm42688_output;
 	ICM42688 icm42688_dev;
+	ComplementaryFilter localization;
+	LocalizationOutput localization_output;
 };
 
 #include "config.hpp"

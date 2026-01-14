@@ -76,7 +76,14 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+typedef struct {
+	uint32_t tick_ms;
+	uint32_t tick_us;
+} Instant;
 
+Instant getInstant();
+
+uint32_t elapsed_us(Instant start, Instant end);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
