@@ -76,3 +76,24 @@ void AdcData::into_message(std::vector<uint8_t> &data) {
 		data.push_back((uint8_t)(ipropis_mv[i] & 0xFF));
 	}
 }
+
+float AdcData::batt_v() {
+	return static_cast<float>(batt_mv) / 1e3;
+}
+
+float AdcData::vref_v() {
+	return static_cast<float>(vref_mv) / 1e3;
+}
+
+float AdcData::temp_c() {
+	return static_cast<float>(self_temp_C);
+}
+
+std::array<float, 4> AdcData::ipropis_v() {
+	std::array<float, 4> arr;
+
+	for (int i = 0; i < 4; i++)
+		arr[i] = static_cast<float>(ipropis_mv[i]) / 1.0e3;
+
+	return arr;
+}

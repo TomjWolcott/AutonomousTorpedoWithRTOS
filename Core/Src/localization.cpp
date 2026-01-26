@@ -81,12 +81,6 @@ static quat<float> quat_from_acc_mag(vec<float, 3> a, vec<float, 3> m) {
 	return q2 * q1;
 }
 
-static quat<float> Nlerp(quat<float> start, quat<float> end, float t) {
-    quat<float> result = start + (end - start) * t;
-
-    return normalized(result);
-}
-
 void ComplementaryFilter::reset() {
 	ori = identity_quat<float>();
 	prev_update_instant = { 0, 0 };
@@ -94,25 +88,32 @@ void ComplementaryFilter::reset() {
 
 void ComplementaryFilter::update(vec<float,3> a, vec<float,3> m, vec<float,3> gyr) {
 	quat<float> ori_from_acc_mag = quat_from_acc_mag(a, m);
+	now = getInstant();
 
-//	if (prev_update_instant.tick_ms == 0 && prev_update_instant.tick_us == 0) {
+	if (prev_update_instant.tick_ms == 0 && prev_update_instant.tick_us == 0) {
 		ori = ori_from_acc_mag;
-//	} else {
-//		Instant now = getInstant();
-//		prev_update_instant = now;
-//		float dt_s = static_cast<float>(elapsed_us(now, prev_update_instant)) / 1e6;
-//
-//		float gyro_mag = mag(gyr);
-//		float gyro_angle_rad = dt_s * gyro_mag * M_PI / 180;
-//		vec<float,3> gyro_axis = gyr / gyro_mag;
-//
-//		quat<float> ori_from_gyro = ori;
-//		rotate(ori_from_gyro, gyro_axis, gyro_angle_rad);
-//
-//		ori = Nlerp(ori_from_gyro, ori_from_acc_mag, tuning_parameter);
-//	}
+	} else {
+		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+
+		float dt_s = 0.0020940;//static_cast<float>(elapsed_us(prev_update_instant, now)) / 1e6;
+
+		float gyro_mag = mag(gyr);
+		float gyro_angle_rad = dt_s * gyro_mag * M_PI / 180;
+		vec<float,3> gyro_axis = gyr / gyro_mag;
+
+		quat<float> ori_from_gyro = ori;
+		rotate(ori_from_gyro, gyro_axis, -gyro_angle_rad);
+
+		ori = slerp180(ori_from_acc_mag, ori_from_gyro, tuning_parameter);
+
+//		vel += a * dt_s;
+//		pos += vel * dt_s;
+	}
+
+	prev = prev_update_instant;
+	prev_update_instant = now;
 }
 
 LocalizationOutput ComplementaryFilter::output() {
-	return (LocalizationOutput){ ori, {0, 0, 0} };
+	return (LocalizationOutput){ ori, pos, vel };
 }

@@ -15,12 +15,17 @@
 MutexLazy<sml::sm<SystemModes::SM>> systemModesSM = MutexLazy<sml::sm<SystemModes::SM>>();
 MutexLazy<Data> dataMutex = MutexLazy<Data>();
 MutexLazy<Config> configMutex;
+MutexLazy<MotorControl> motorControlMutex;
 
 extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	initADC();
 
 	configMutex = MutexLazy<Config>(Config::from_flash());
 	configMutex.ensureInitialized();
+
+	MotorControl motor_control = MotorControl();
+	motor_control.initialize_pwm();
+	motorControlMutex = MutexLazy<MotorControl>(motor_control);
 
 	auto data_lock = dataMutex.get_lock();
 	data_lock->ak09940a_dev = AK09940A_Dev();

@@ -13,6 +13,7 @@
 #if __cplusplus
 #include "cpp_freertos_helpers.hpp"
 #include <vector>
+#include <array>
 
 void initADC();
 
@@ -42,6 +43,11 @@ public:
 
 	static AdcData from_buffer();
 	void into_message(std::vector<uint8_t> &data);
+
+	float batt_v();
+	float vref_v();
+	float temp_c();
+	std::array<float, 4> ipropis_v();
 };
 
 extern "C" {

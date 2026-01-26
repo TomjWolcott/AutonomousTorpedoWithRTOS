@@ -195,9 +195,11 @@ namespace SystemModes {
 
 	// Setup Tasks
 	void repeatEchoes(void* parameters);
+	void watchout(void* parameters);
 
 	static Task SETUP_TASKS[] = {
 		Task(repeatEchoes, {.name = "echoReply", .stack_size = 400, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+		Task(watchout, {.name = "watchout", .stack_size = 1000, .priority = (osPriority_t) osPriorityHigh}, nullptr),
 	};
 
 	// Events
@@ -219,8 +221,8 @@ namespace SystemModes {
 				// toState <= fromState + event [guard] / action:
 				// On `Event` if `guard` is true perform `action` and transition from `fromState` to `toState`
 				state<Setup>  <= *idle + event<StartStateMachine>,
-					state<Setup> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<1, SETUP_TASKS>),
-					state<Setup> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<1, SETUP_TASKS>),
+					state<Setup> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<2, SETUP_TASKS>),
+					state<Setup> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<2, SETUP_TASKS>),
 
 				state<Active> <= state<Setup> + event<EnterActive>,
 
@@ -239,6 +241,7 @@ extern MutexLazy<sml::sm<SystemModes::SM>> systemModesSM;
 #include "AK09940A.hpp"
 #include "ICM42688.hpp"
 #include "localization.hpp"
+#include "MotorControl.hpp"
 
 struct Data {
 	AdcData adcData;
@@ -255,6 +258,7 @@ struct Data {
 // Both defined in cpp_main.cpp
 extern MutexLazy<Data> dataMutex;
 extern MutexLazy<Config> configMutex;
+extern MutexLazy<MotorControl> motorControlMutex;
 
 
 #endif /* INC_STATE_MANAGEMENT_HPP_ */

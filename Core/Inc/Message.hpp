@@ -23,6 +23,7 @@
 #include "ICM42688.hpp"
 #include "config.hpp"
 #include "localization.hpp"
+#include "MotorControl.hpp"
 
 #define FIRMWARE_VERSION_MAJOR 0
 #define FIRMWARE_VERSION_MINOR 1
@@ -46,11 +47,22 @@ enum MessageType {
 enum ActionType {
     ACTION_TYPE_NOOP = 0,
 	ACTION_TYPE_CALIBRATION_SETTINGS = 1,
-	ACTION_TYPE_SPIN_MOTOR = 2,
+	ACTION_TYPE_SET_MOTOR_SPEEDS = 2,
 	ACTION_TYPE_SEND_CONFIG = 3,
 	ACTION_TYPE_CALIBRATION_MSG = 4,
 
 	ACTION_TYPE_NOT_AN_ACTION = 255
+};
+
+struct MotorSpeeds {
+	std::array<float,4> speeds;
+
+	MotorSpeeds(float s1, float s2, float s3, float s4) {
+		speeds[0] = s1;
+		speeds[1] = s2;
+		speeds[2] = s3;
+		speeds[3] = s4;
+	}
 };
 
 enum CalibrationType {
@@ -87,6 +99,7 @@ public:
 	ActionType type();
 	CalibrationSettings asCalibrationSettings();
 	CalibrationMsgType asCalibrationMsg();
+	MotorSpeeds asMotorSpeeds();
 };
 
 // ---------------------------------------------------- SendData stuff ---------------------
@@ -95,7 +108,7 @@ public:
 #define SendDataAccGyro 0x04
 #define SendDataDepthTemp 0x08
 #define SendDataLocalizedData 0x10
-#define SendDataAirPressure 0x20
+#define SendDataMotorData 0x20
 #define SendDataOtherInfo 0x40
 
 struct OtherData {
@@ -145,7 +158,8 @@ public:
 		std::optional<AK09940A_Output> ak09940a_output,
 		std::optional<ICM42688_Data> icm42688_data,
 		std::optional<OtherData> other_data,
-		std::optional<LocalizationOutput> localization_output
+		std::optional<LocalizationOutput> localization_output,
+		std::optional<AllMotorStats> motor_stats
 	);
 	static Message sendCalibrationData(std::span<std::array<float, 3>> other_data, bool is_finished);
 	static Message sendConfig(Config &config);

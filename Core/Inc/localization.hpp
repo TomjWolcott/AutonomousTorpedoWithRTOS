@@ -23,6 +23,7 @@ struct EulerAngles {
 struct LocalizationOutput {
 	quat<float> orientation = identity_quat<float>();
 	vec<float, 3> position = {0, 0, 0};
+	vec<float, 3> velocity = {0, 0, 0};
 
 	EulerAngles asEulerAngles();
 	void into_message(std::vector<uint8_t> &data);
@@ -45,18 +46,26 @@ struct ILocalizationMethod {
 class ComplementaryFilter final : ILocalizationMethod {
 private:
 	quat<float> ori;
+	vec<float,3> pos;
+	vec<float,3> vel;
 	Instant prev_update_instant;
 public:
+	Instant prev;
+	Instant now;
 	float tuning_parameter;
 
 	ComplementaryFilter() {
 		ori = identity_quat<float>();
+		pos = { 0, 0, 0 };
+		vel = { 0, 0, 0 };
 		prev_update_instant = { 0, 0 };
+		now = { 0, 0 };
+		prev = { 0, 0 };
 		tuning_parameter = 0.98;
 	}
 
 	void reset() override;
-	void update(vec<float,3> acc, vec<float,3> mag, vec<float,3> gyr) override;
+	void update(vec<float,3> a, vec<float,3> m, vec<float,3> gyr) override;
 	LocalizationOutput output() override;
 };
 

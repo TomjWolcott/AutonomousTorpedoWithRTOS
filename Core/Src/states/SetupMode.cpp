@@ -30,6 +30,45 @@ namespace SystemModes {
 
 		osThreadExit();
 	}
+
+	void __NO_RETURN watchout(void *parameters) {
+		Task *this_task = (Task *)parameters;
+
+		while (!this_task->is_task_dead) {
+			bool go_to_sleep = false;
+
+			auto motor_lock = motorControlMutex.get_lock();
+
+//			MotorStats stats[4] = {
+//				motor_lock->get_motor_stats(M_TL),
+//				motor_lock->get_motor_stats(M_TR),
+//				motor_lock->get_motor_stats(M_BL),
+//				motor_lock->get_motor_stats(M_BR)
+//			};
+
+			float batt_v = motor_lock->estimated_true_batt_v();
+
+			motor_lock.unlock();
+
+//			float total_current = (stats[0].current + stats[1].current + stats[2].current + stats[3].current);
+
+//			go_to_sleep |= total_current > 4.0;
+
+			go_to_sleep |= batt_v < 3.6;
+
+			if (go_to_sleep) {
+//				printf("GOING TO SLEEP: batt_v: %.3f Volts, total_current: %.3f Amps\n", batt_v, total_current);
+
+				auto sm_lock = systemModesSM.get_lock();
+				sm_lock->process_event(EnterSleep {});
+				sm_lock.unlock();
+			}
+
+			osDelay(10);
+		}
+
+		osThreadExit();
+	}
 }
 
 namespace SetupMode {
@@ -110,6 +149,16 @@ namespace SetupMode {
 					msg.send();
 					printf("SENT!!\n");
 					break;
+				} case ACTION_TYPE_SET_MOTOR_SPEEDS: {
+					MotorSpeeds motor_speeds = action.asMotorSpeeds();
+//					printf("setting motor speeds: [%.4f, %.4f, %.4f, %.4f]\n", motor_speeds.speeds[0], motor_speeds.speeds[1], motor_speeds.speeds[2], motor_speeds.speeds[3]);
+					auto motor_lock = motorControlMutex.get_lock();
+//					printf("In motor lock\n");
+
+					motor_lock->set_motor_speeds(motor_speeds.speeds);
+
+					motor_lock.unlock();
+					break;
 				} case ACTION_TYPE_CALIBRATION_MSG: {
 					printf("STARTING CALIBRATION ROUTINE!\n");
 					auto sm_lock = systemModesSM.get_lock();
@@ -169,16 +218,22 @@ namespace SetupMode {
 			last_t = HAL_GetTick();
 			OtherData other_data = OtherData(last_t, rate_hz);
 
-			auto lock = dataMutex.get_lock();
-			lock->localization_output = lock->localization.output();
+			auto motor_lock = motorControlMutex.get_lock();
+			AllMotorStats stats = motor_lock->get_all_motor_stats();
+			motor_lock.unlock();
+
+			auto data_lock = dataMutex.get_lock();
+			data_lock->localization_output = data_lock->localization.output();
 			Message msg = Message::sendData(
-					lock->adcData,
-					lock->ak09940a_output,
-					lock->icm42688_output,
+					data_lock->adcData,
+					data_lock->ak09940a_output,
+					data_lock->icm42688_output,
 					other_data,
-					lock->localization_output
+					data_lock->localization_output,
+//					std::nullopt
+					stats
 			);
-			lock.unlock();
+			data_lock.unlock();
 
 			msg.send();
 
@@ -194,44 +249,27 @@ namespace SetupMode {
 //		Instant prevInstant = getInstant();
 
 		while (!this_task->is_task_dead) {
-//			auto data_lock = dataMutex.get_lock();
-//			auto config_lock = configMutex.get_lock();
+//			auto motor_lock = motorControlMutex.get_lock();
+////			AllMotorStats stats = motor_lock->get_all_motor_stats();
+//			MotorStats stats = motor_lock->get_motor_stats(M_TL);
+//			AdcData data = motor_lock->data;
+//			motor_lock.unlock();
 //
-//			vec<float,3> acc = config_lock->calibrated_acc(data_lock->icm42688_output.acc);
-//			vec<float,3> mag = config_lock->calibrated_mag(data_lock->ak09940a_output.mag);
-//			vec<float,3> gyr = config_lock->calibrated_gyro(data_lock->icm42688_output.gyro);
-//
-//			config_lock.unlock();
-//
-//			LocalizationOutput local_out = data_lock->localization_output;
-//			float beta = data_lock->localization.tuning_parameter;
-//			data_lock.unlock();
-//
-//			printf("Tuning param: %.5f", beta);
-
-//
-//			printf("cal acc: [%.3f, %.3f, %.3f], cal mag: [%.3f, %.3f, %.3f], cal gyr: [%.3f, %.3f, %.3f]\n",
-//				X(acc), Y(acc), Z(acc),
-//				X(mag), Y(mag), Z(mag),
-//				X(gyr), Y(gyr), Z(gyr)
-//			);
+//			printf("tl current: %.5f A, voltage: %.5f V, power: %.5f W, ipropi_v = %.5f, ipropi_mv = %d\n", stats.current, stats.voltage, stats.power, data.ipropis_v()[3], data.ipropis_mv[3]);
 
 //			printf(
-//				"quat: [%.5f, %.5f, %.5f | %.5f], pos: [%.5f, %.5f, %.5f]\n",
-//				X(local_out.orientation), Y(local_out.orientation), Z(local_out.orientation), S(local_out.orientation),
-//				X(local_out.position), Y(local_out.position), Z(local_out.position)
+//				"current: [%.3f, %.3f, %.3f, %.3f], voltage: [%.3f, %.3f, %.3f, %.3f]\n",
+//				stats.stats[0].current,
+//				stats.stats[1].current,
+//				stats.stats[2].current,
+//				stats.stats[3].current,
+//
+//				stats.stats[0].voltage,
+//				stats.stats[1].voltage,
+//				stats.stats[2].voltage,
+//				stats.stats[3].voltage
 //			);
-//			std::vector<uint8_t> data;
-//
-//			local_out.into_message(data);
-//
-//			printf("[ ");
-//
-//			for (unsigned int i = 0; i < data.size(); i++) {
-//				printf("%02X ", data[i]);
-//			}
-//
-//			printf("]\n");
+
 
 			osDelay(500);
 		}

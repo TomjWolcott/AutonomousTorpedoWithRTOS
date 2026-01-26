@@ -142,7 +142,8 @@ Message Message::sendData(
 	std::optional<AK09940A_Output> ak09940a_output,
 	std::optional<ICM42688_Data> icm42688_data,
 	std::optional<OtherData> other_data,
-	std::optional<LocalizationOutput> localization_output
+	std::optional<LocalizationOutput> localization_output,
+	std::optional<AllMotorStats> motor_stats
 ) {
 	std::vector<uint8_t> data = {
 		MESSAGE_HEADER[0],
@@ -172,6 +173,11 @@ Message Message::sendData(
 	if (localization_output.has_value()) {
 		localization_output.value().into_message(data);
 		data[6] |= SendDataLocalizedData;
+	}
+
+	if (motor_stats.has_value()) {
+		motor_stats.value().into_message(data);
+		data[6] |= SendDataMotorData;
 	}
 
 	if (other_data.has_value()) {
@@ -393,6 +399,15 @@ CalibrationSettings ActionMsg::asCalibrationSettings() {
 
 CalibrationMsgType ActionMsg::asCalibrationMsg() {
 	return (CalibrationMsgType)(data[7]);
+}
+
+MotorSpeeds ActionMsg::asMotorSpeeds() {
+	return MotorSpeeds(
+		static_cast<float>(data[7]) / 127.0 - 1.0,
+		static_cast<float>(data[8]) / 127.0 - 1.0,
+		static_cast<float>(data[9]) / 127.0 - 1.0,
+		static_cast<float>(data[10]) / 127.0 - 1.0
+	);
 }
 
 // Echo
