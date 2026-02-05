@@ -20,12 +20,18 @@ struct EulerAngles {
 	float yaw;
 };
 
+struct LocalizedAccMag {
+	vec<float, 3> acc;
+	vec<float, 3> mag;
+};
+
 struct LocalizationOutput {
 	quat<float> orientation = identity_quat<float>();
 	vec<float, 3> position = {0, 0, 0};
 	vec<float, 3> velocity = {0, 0, 0};
 
 	EulerAngles asEulerAngles();
+	LocalizedAccMag asLocalizedAccMag();
 	void into_message(std::vector<uint8_t> &data);
 };
 

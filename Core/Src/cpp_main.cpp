@@ -16,6 +16,7 @@ MutexLazy<sml::sm<SystemModes::SM>> systemModesSM = MutexLazy<sml::sm<SystemMode
 MutexLazy<Data> dataMutex = MutexLazy<Data>();
 MutexLazy<Config> configMutex;
 MutexLazy<MotorControl> motorControlMutex;
+//MutexLazy<PIDs> pidMutex;
 
 extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	initADC();
@@ -26,6 +27,10 @@ extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	MotorControl motor_control = MotorControl();
 	motor_control.initialize_pwm();
 	motorControlMutex = MutexLazy<MotorControl>(motor_control);
+
+//	PIDs pids;
+//	pids.roll = RollCL(0.1, 0.0, 0.0, -1.0, 1.0, -10.0, 10.0);
+//	pidMutex = MutexLazy<PIDs>(pids);
 
 	auto data_lock = dataMutex.get_lock();
 	data_lock->ak09940a_dev = AK09940A_Dev();

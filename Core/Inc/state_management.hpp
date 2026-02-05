@@ -242,6 +242,7 @@ extern MutexLazy<sml::sm<SystemModes::SM>> systemModesSM;
 #include "ICM42688.hpp"
 #include "localization.hpp"
 #include "MotorControl.hpp"
+#include "control_loops.hpp"
 
 struct Data {
 	AdcData adcData;
@@ -253,12 +254,17 @@ struct Data {
 	LocalizationOutput localization_output;
 };
 
+struct PIDs {
+	RollCL roll;
+};
+
 #include "config.hpp"
 
 // Both defined in cpp_main.cpp
 extern MutexLazy<Data> dataMutex;
 extern MutexLazy<Config> configMutex;
 extern MutexLazy<MotorControl> motorControlMutex;
+//extern MutexLazy<PIDs> pidMutex;
 
 
 #endif /* INC_STATE_MANAGEMENT_HPP_ */

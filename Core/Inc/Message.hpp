@@ -112,10 +112,10 @@ public:
 #define SendDataOtherInfo 0x40
 
 struct OtherData {
-	uint32_t timestamp_us;
+	uint64_t timestamp_us;
 	uint16_t rate_hz;
 
-	OtherData(uint32_t timestamp_us, uint16_t rate_hz) : timestamp_us(timestamp_us), rate_hz(rate_hz) {}
+	OtherData(uint64_t timestamp_us, uint16_t rate_hz) : timestamp_us(timestamp_us), rate_hz(rate_hz) {}
 
 	void into_message(std::vector<uint8_t> &data);
 };

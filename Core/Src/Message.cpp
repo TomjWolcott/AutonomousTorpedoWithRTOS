@@ -125,7 +125,11 @@ Message Message::pingWithMs() {
 }
 
 void OtherData::into_message(std::vector<uint8_t> &data) {
-	data.push_back(timestamp_us >> 24);
+	data.push_back(timestamp_us >> 56);
+	data.push_back((timestamp_us >> 48) & 0xFF);
+	data.push_back((timestamp_us >> 40) & 0xFF);
+	data.push_back((timestamp_us >> 32) & 0xFF);
+	data.push_back((timestamp_us >> 24) & 0xFF);
 	data.push_back((timestamp_us >> 16) & 0xFF);
 	data.push_back((timestamp_us >> 8) & 0xFF);
 	data.push_back(timestamp_us & 0xFF);

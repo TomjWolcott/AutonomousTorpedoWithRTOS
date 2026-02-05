@@ -12,13 +12,25 @@
 #include "semphr.h"
 #include "portmacro.h"
 #include <atomic>
+#include <vector>
+
+// TODO: Finish adding deadlock avoidance
+//static std::vector<SemaphoreHandle_t &> semaphore_list;
+//
+//static SemaphoreHandle_t create_mutex_semaphor() {
+//	SemaphoreHandle_t semaphore = xSemaphoreCreateBinary();
+//
+//	semaphore_list.push_back(&semaphore);
+//
+//	return semaphore;
+//}
 
 inline bool isInterrupt()
 {
     return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0 ;
 }
 
-/// Delete the lock after you're done with it or else it will survive until the end of the block
+/// Must be explicitly unlocked
 template<typename T>
 class MutexLock {
 	T *t;

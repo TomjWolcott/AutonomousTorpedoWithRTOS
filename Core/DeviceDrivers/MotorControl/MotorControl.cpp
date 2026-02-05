@@ -9,12 +9,31 @@
 #include <cmath>
 #include <cstdio>
 
+static std::array<float,4> direct_to_frpy(std::array<float,4> v) {
+	return {
+		std::min<float>(1.0, std::max<float>(-1.0, (v[0] + v[1] + v[2] + v[3]) / 4.0)),
+		std::min<float>(1.0, std::max<float>(-1.0, (v[0] - v[1] - v[2] + v[3]) / 4.0)),
+		std::min<float>(1.0f, std::max<float>(-1.0, (v[0] + v[1] - v[2] - v[3]) / 4.0)),
+		std::min<float>(1.0f, std::max<float>(-1.0, (v[0] - v[1] + v[2] - v[3]) / 4.0))
+	};
+}
+
+static std::array<float,4> frpy_to_direct(std::array<float,4> v) {
+	return {
+		std::min<float>(1.0, std::max<float>(-1.0, v[0] + v[1] + v[2] + v[3])),
+		std::min<float>(1.0, std::max<float>(-1.0, v[0] - v[1] + v[2] - v[3])),
+		std::min<float>(1.0, std::max<float>(-1.0, v[0] - v[1] - v[2] + v[3])),
+		std::min<float>(1.0, std::max<float>(-1.0, v[0] + v[1] - v[2] - v[3]))
+	};
+}
+
 void AllMotorStats::into_message(std::vector<uint8_t> &data) {
-	uint8_t ordered_data[16] = { 0 };
+	uint8_t ordered_data[24] = { 0 };
 
 	for (int i = 0; i < 4; i++) {
 		uint32_t current_data = static_cast<uint32_t>(65536.0 * stats[i].current / 8.0);
 		uint32_t voltage_data = static_cast<uint32_t>(65536.0 * stats[i].voltage / 8.0);
+		uint32_t input_data = static_cast<uint32_t>(65536.0 * (stats[i].input + 1.0) / 2.0);
 
 		ordered_data[2*i + 0] = ((current_data >> 8) & 0xFF);
 		ordered_data[2*i + 1] = (current_data & 0xFF);
@@ -22,9 +41,11 @@ void AllMotorStats::into_message(std::vector<uint8_t> &data) {
 		ordered_data[2*i + 8] = ((voltage_data >> 8) & 0xFF);
 		ordered_data[2*i + 9] = (voltage_data & 0xFF);
 
+		ordered_data[2*i + 16] = ((input_data >> 8) & 0xFF);
+		ordered_data[2*i + 17] = (input_data & 0xFF);
 	}
 
-	data.insert(data.end(), ordered_data, ordered_data + 16);
+	data.insert(data.end(), ordered_data, ordered_data + 24);
 }
 
 MotorIndex MotorConfig::motorIdToIndex(MotorId id) {
@@ -204,6 +225,10 @@ std::array<SetMotorInputResult, 4> MotorControl::set_motor_speeds(std::array<flo
 	return results;
 }
 
+std::array<SetMotorInputResult, 4> MotorControl::set_motor_speeds_frpy(std::array<float,4> speeds) {
+	return set_motor_speeds(frpy_to_direct(speeds));
+}
+
 static float fsign(float x) {
     return (x > 0.0) - (x < 0.0);
 }
@@ -214,6 +239,12 @@ float MotorControl::to_raw_drive_speed(float drive_speed, MotorId id) {
 	if (std::abs(drive_speed) > max_speed) {
 		drive_speed = fsign(drive_speed) * max_speed;
 	}
+
+	return drive_speed;
+}
+
+float MotorControl::from_raw_drive_speed(float drive_speed, MotorId id) {
+	drive_speed /= global_speed_multiplier * config.motorIdMultiplier(id);
 
 	return drive_speed;
 }
@@ -279,13 +310,15 @@ MotorStats MotorControl::get_motor_stats(MotorId id) {
 	data = AdcData::from_buffer();
     MotorIndex index = config.motorIdToIndex(id);
 
+    float input = from_raw_drive_speed(current_inputs[index].drive_speed, id);
+
     float motor_voltage = data.batt_v() * std::abs(current_inputs[index].drive_speed);
     std::array<float, 4> v_ipropi = data.ipropis_v();
 //    printf("v_ipropi[index] = %.5f\n", v_ipropi[index]);
     float motor_current = 1000000.0 * v_ipropi[index] / (DRV8213_R_IPROPI * DRV8213_GAINS[current_inputs[index].gainsel]);
     float motor_power = motor_voltage * motor_current;
 
-    return MotorStats(motor_current, motor_voltage, motor_power);
+    return MotorStats(input, motor_current, motor_voltage, motor_power);
 }
 
 AllMotorStats MotorControl::get_all_motor_stats() {

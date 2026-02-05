@@ -84,6 +84,10 @@ typedef struct {
 Instant getInstant();
 
 uint32_t elapsed_us(Instant start, Instant end);
+uint32_t elapsed_us2(Instant start, Instant end);
+
+uint32_t readUsCounterOffset();
+uint32_t getTick_us();
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

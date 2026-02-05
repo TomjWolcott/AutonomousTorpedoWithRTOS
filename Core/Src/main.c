@@ -117,44 +117,54 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *handle) {
 	adcInterruptHandler(handle);
 }
 
+#define us_COUNTER_MAX 10000
+static uint32_t usCounterOffset = 0;
+
+static void getMicrosecondCounterOffset() {
+	uint32_t tick_us = TIM6->CNT;
+	uint32_t starting_tick_ms = HAL_GetTick();
+	uint32_t tick_ms = HAL_GetTick();
+
+	while (tick_ms == starting_tick_ms) {
+		tick_us = TIM6->CNT;
+		tick_ms = HAL_GetTick();
+	}
+
+	usCounterOffset = tick_us % 1000;
+}
 
 Instant getInstant() {
+	taskENTER_CRITICAL();
 	uint32_t tick_us = TIM6->CNT;
+	uint32_t tick_ms = HAL_GetTick();
+	taskEXIT_CRITICAL();
 
 
-	return (Instant){ HAL_GetTick(), tick_us };
+	return (Instant){ tick_ms, (tick_us + 1000 - usCounterOffset) % us_COUNTER_MAX };
 }
 
 uint32_t elapsed_us(Instant start, Instant end) {
     int32_t d_ms = (int32_t)end.tick_ms - (int32_t)start.tick_ms;
     int32_t d_us = (int32_t)end.tick_us - (int32_t)start.tick_us;
 
-    return (uint32_t)(d_us + 1000 * d_ms - 1000 * (d_us / 1000));
+    return 1000 * d_ms + d_us;
 }
 
-// --------------- printf override -------------------
-//#ifndef __ICCARM__ /* If not IAR */
-//int _write(int file, char *ptr, int len);
-//#endif /* __CC_ARM */
-//
-//#ifdef __ICCARM__
-//int __write(int file, char *ptr, int len)
-//#else
-//int _write(int file, char *ptr, int len)
-//#endif
-//{
-//	return _write_override(file, ptr, len);
-//}
-//
-//#ifdef __CC_ARM
-//int fputc(int ch, FILE *f)
-//{
-//  _write(0, (char *)&ch, 1);
-//
-//  return ch;
-//}
-//#endif
-// --------------- printf override -------------------
+/// Caclulates elapsed time from tick_us only, only works for up to us_COUNTER_MAX us
+uint32_t elapsed_us2(Instant start, Instant end) {
+	return (end.tick_us >= start.tick_us) ?
+		(end.tick_us - start.tick_us) :
+		((us_COUNTER_MAX - start.tick_us) + end.tick_us);
+}
+
+uint32_t readUsCounterOffset() {
+	return usCounterOffset;
+}
+
+uint32_t getTick_us() {
+	return TIM6->CNT;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -165,7 +175,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -199,6 +208,7 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
+//	getMicrosecondCounterOffset();
 //  HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_0);
   NVIC_SetPriorityGrouping(0);
 
@@ -225,7 +235,7 @@ int main(void)
 //	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 	HAL_Delay(2000);
 
-//	print_out("INITIALIZE");
+//	print_out("INITIALIZE");=
 	HAL_TIM_Base_Start(&htim6);
 
 	// ADC initialization

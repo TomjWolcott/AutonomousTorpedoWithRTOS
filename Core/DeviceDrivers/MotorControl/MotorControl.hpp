@@ -28,12 +28,13 @@ struct MotorInput {
 };
 
 struct MotorStats {
+	float input; // [-1, 1]
 	float current; // (Amps)
 	float voltage; // (Volts)
 	float power; // (Watts)
 
-	MotorStats(float current, float voltage, float power)
-		: current(current), voltage(voltage), power(power) {}
+	MotorStats(float input, float current, float voltage, float power)
+		: input(input), current(current), voltage(voltage), power(power) {}
 };
 
 struct AllMotorStats {
@@ -133,10 +134,12 @@ public:
 	void initialize_pwm();
 
 	float to_raw_drive_speed(float drive_speed, MotorId id);
+	float from_raw_drive_speed(float drive_speed, MotorId id);
 
 	/// In MotorId order
 	std::array<SetMotorInputResult, 4> set_motor_inputs(MotorInput inputs[4]);
 	std::array<SetMotorInputResult, 4> set_motor_speeds(std::array<float,4> speeds);
+	std::array<SetMotorInputResult, 4> set_motor_speeds_frpy(std::array<float,4> speeds);
 
 	SetMotorInputResult set_motor_input(MotorInput input, MotorId id);
 	SetMotorInputResult set_motor_speed(float driveSpeed, MotorId id);

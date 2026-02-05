@@ -33,6 +33,7 @@
 									<listOptionValue builtIn="false" value="DEBUG"/>
 								</option>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.includepaths.754903306" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.includepaths" valueType="includePath">
+									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/control-loops"/>
 									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/MotorControl"/>
 									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/PID/cpp"/>
 									<listOptionValue builtIn="false" value="../Core/Inc"/>
@@ -73,6 +74,7 @@
 									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/stm32-ssd1306-master/ssd1306"/>
 									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/AdcData"/>
 									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/ak09940a"/>
+									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/control-loops"/>
 									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/PID/cpp"/>
 									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/ICM42688-master/src"/>
 								</option>
@@ -91,6 +93,7 @@
 								</option>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.includepaths.39403579" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="../DeviceDrivers/stm32-ssd1306-master/ssd1306"/>
+									<listOptionValue builtIn="false" value="../Core/DeviceDrivers/control-loops"/>
 									<listOptionValue builtIn="false" value="../Core/ee"/>
 									<listOptionValue builtIn="false" value="../DeviceDrivers/STSW-IMG009_v3.5.4/API/platform"/>
 									<listOptionValue builtIn="false" value="../DeviceDrivers/STSW-IMG009_v3.5.4/API/core"/>
@@ -140,9 +143,9 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="STDIO"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="STDIO"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -322,9 +325,9 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="STDIO"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="STDIO"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>

@@ -36,6 +36,15 @@ EulerAngles LocalizationOutput::asEulerAngles() {
     return angles;
 }
 
+LocalizedAccMag LocalizationOutput::asLocalizedAccMag() {
+	LocalizedAccMag acc_mag;
+
+	acc_mag.acc = orientation * vec<float,3>{0, 0, -1};
+	acc_mag.mag = orientation * vec<float,3>{1, 0, 0};
+
+	return acc_mag;
+}
+
 void LocalizationOutput::into_message(std::vector<uint8_t> &data) {
 	float floats[7] = {
 		// quat follows ordering of https://www.npmjs.com/package/quaternion
@@ -95,7 +104,7 @@ void ComplementaryFilter::update(vec<float,3> a, vec<float,3> m, vec<float,3> gy
 	} else {
 		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 
-		float dt_s = 0.0020940;//static_cast<float>(elapsed_us(prev_update_instant, now)) / 1e6;
+		float dt_s = static_cast<float>(elapsed_us2(prev_update_instant, now)) / 1e6;
 
 		float gyro_mag = mag(gyr);
 		float gyro_angle_rad = dt_s * gyro_mag * M_PI / 180;

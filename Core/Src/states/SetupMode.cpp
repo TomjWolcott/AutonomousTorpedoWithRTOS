@@ -58,10 +58,19 @@ namespace SystemModes {
 
 			if (go_to_sleep) {
 //				printf("GOING TO SLEEP: batt_v: %.3f Volts, total_current: %.3f Amps\n", batt_v, total_current);
+				ssd1306_SetCursor(0, 0);
+				ssd1306_WriteString("BATT VOLTAGE LOW", Font_6x8, White);
 
-				auto sm_lock = systemModesSM.get_lock();
-				sm_lock->process_event(EnterSleep {});
-				sm_lock.unlock();
+				char s[100];
+				ssd1306_SetCursor(0, 8);
+				sprintf(s, "%.5f V", batt_v);
+				ssd1306_WriteString(s, Font_6x8, White);
+
+				ssd1306_UpdateScreen();
+
+//				auto sm_lock = systemModesSM.get_lock();
+//				sm_lock->process_event(EnterSleep {});
+//				sm_lock.unlock();
 			}
 
 			osDelay(10);
@@ -197,8 +206,22 @@ namespace SetupMode {
 				config_lock->calibrated_gyro(data_lock->icm42688_output.gyro)
 			);
 
+			LocalizedAccMag acc_mag = data_lock->localization.output().asLocalizedAccMag();
+
 			config_lock.unlock();
 			data_lock.unlock();
+
+//			const float target = 0.0;
+//			const float measured = atan2(Z(acc_mag.mag), Y(acc_mag.mag));
+
+//			auto pid_lock = pidMutex.get_lock();
+//			const float output = pid_lock->roll.update(target, measured);
+//			pid_lock.unlock();
+//
+//			auto motor_lock = motorControlMutex.get_lock();
+//			motor_lock->set_motor_speeds_frpy({0, output, 0, 0});
+//			motor_lock.unlock();
+
 			collectDataCount++;
 //			osDelay(100);
 			stack_expense[0] = 4 * uxTaskGetStackHighWaterMark(NULL);
@@ -216,7 +239,7 @@ namespace SetupMode {
 			collectDataCount = 0;
 
 			last_t = HAL_GetTick();
-			OtherData other_data = OtherData(last_t, rate_hz);
+			OtherData other_data = OtherData((1000 * (uint64_t)last_t), rate_hz);
 
 			auto motor_lock = motorControlMutex.get_lock();
 			AllMotorStats stats = motor_lock->get_all_motor_stats();
