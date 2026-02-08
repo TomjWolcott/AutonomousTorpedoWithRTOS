@@ -139,6 +139,15 @@ void OtherData::into_message(std::vector<uint8_t> &data) {
 
 	data.push_back((uint8_t)FIRMWARE_VERSION_MAJOR);
 	data.push_back((uint8_t)FIRMWARE_VERSION_MINOR);
+
+	data.push_back(free_heap >> 56);
+	data.push_back((free_heap >> 48) & 0xFF);
+	data.push_back((free_heap >> 40) & 0xFF);
+	data.push_back((free_heap >> 32) & 0xFF);
+	data.push_back((free_heap >> 24) & 0xFF);
+	data.push_back((free_heap >> 16) & 0xFF);
+	data.push_back((free_heap >> 8) & 0xFF);
+	data.push_back(free_heap & 0xFF);
 }
 
 Message Message::sendData(

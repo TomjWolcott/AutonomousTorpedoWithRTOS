@@ -12,45 +12,46 @@
 #include "AdcData.hpp"
 #include "config.hpp"
 
-MutexLazy<sml::sm<SystemModes::SM>> systemModesSM = MutexLazy<sml::sm<SystemModes::SM>>();
-MutexLazy<Data> dataMutex = MutexLazy<Data>();
-MutexLazy<Config> configMutex;
-MutexLazy<MotorControl> motorControlMutex;
+MutexLazy<State> stateMutex;
 //MutexLazy<PIDs> pidMutex;
+uint32_t initialHeapSize;
 
 extern "C" __NO_RETURN void cppMainTask(void *argument) {
-	initADC();
-
-	configMutex = MutexLazy<Config>(Config::from_flash());
-	configMutex.ensureInitialized();
-
-	MotorControl motor_control = MotorControl();
-	motor_control.initialize_pwm();
-	motorControlMutex = MutexLazy<MotorControl>(motor_control);
-
-//	PIDs pids;
-//	pids.roll = RollCL(0.1, 0.0, 0.0, -1.0, 1.0, -10.0, 10.0);
-//	pidMutex = MutexLazy<PIDs>(pids);
-
-	auto data_lock = dataMutex.get_lock();
-	data_lock->ak09940a_dev = AK09940A_Dev();
-	data_lock->ak09940a_dev.init(AK09940A_PowerDown, AK09940A_LowNoiseDrive2);
-	osDelay(1);
-	data_lock->icm42688_dev = ICM42688();
-	data_lock->icm42688_dev.begin();
-	data_lock->icm42688_dev.setAccelFS(ICM42688::AccelFS::gpm4);
-	data_lock->icm42688_dev.setGyroFS(ICM42688::GyroFS::dps62_5);
-
-	data_lock.unlock();
+	initialHeapSize = xPortGetFreeHeapSize();
 
 	ssd1306_SetCursor(0, 0);
 	ssd1306_WriteString("2025/2026 Winter", Font_6x8, White);
+//	ssd1306_SetCursor(0, 8);
+//	char s[100];
+//	sprintf(s, "heap: %d", initialHeapSize);
+//	ssd1306_WriteString(s, Font_6x8, White);
 	ssd1306_UpdateScreen();
 
-	auto sm_lock = systemModesSM.get_lock();
-	sm_lock->process_event(SystemModes::StartStateMachine{});
+	osDelay(1000);
 
-	sm_lock.unlock();
+	initADC();
+
+	State state = State();
+
+	state.data.ak09940a_dev = AK09940A_Dev();
+	state.data.ak09940a_dev.init(AK09940A_PowerDown, AK09940A_LowNoiseDrive2);
+	osDelay(1);
+	state.data.icm42688_dev = ICM42688();
+	state.data.icm42688_dev.begin();
+	state.data.icm42688_dev.setAccelFS(ICM42688::AccelFS::gpm4);
+	state.data.icm42688_dev.setGyroFS(ICM42688::GyroFS::dps62_5);
+
+	state.config = Config::from_flash();
+
+	state.motor_control = MotorControl();
+	state.motor_control.initialize_pwm();
+
+	stateMutex = MutexLazy(state);
+	stateMutex.ensureInitialized();
+
+//	auto lock = stateMutex.get_lock();
+//	lock->modes.process_event(SystemModes::StartStateMachine{});
+//	lock.unlock();
 
 	osThreadExit();
 

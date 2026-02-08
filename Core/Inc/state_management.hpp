@@ -235,14 +235,13 @@ namespace SystemModes {
 	};
 }
 
-extern MutexLazy<sml::sm<SystemModes::SM>> systemModesSM;
-
 #include "AdcData.hpp"
 #include "AK09940A.hpp"
 #include "ICM42688.hpp"
 #include "localization.hpp"
 #include "MotorControl.hpp"
 #include "control_loops.hpp"
+#include "config.hpp"
 
 struct Data {
 	AdcData adcData;
@@ -258,12 +257,17 @@ struct PIDs {
 	RollCL roll;
 };
 
-#include "config.hpp"
+struct State {
+	Data data;
+	Config config;
+	MotorControl motor_control;
+	sml::sm<SystemModes::SM> modes;
+
+	State() {}
+};
 
 // Both defined in cpp_main.cpp
-extern MutexLazy<Data> dataMutex;
-extern MutexLazy<Config> configMutex;
-extern MutexLazy<MotorControl> motorControlMutex;
+extern MutexLazy<State> stateMutex;
 //extern MutexLazy<PIDs> pidMutex;
 
 

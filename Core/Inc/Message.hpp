@@ -114,8 +114,11 @@ public:
 struct OtherData {
 	uint64_t timestamp_us;
 	uint16_t rate_hz;
+	size_t free_heap;
 
-	OtherData(uint64_t timestamp_us, uint16_t rate_hz) : timestamp_us(timestamp_us), rate_hz(rate_hz) {}
+	OtherData(uint64_t timestamp_us, uint16_t rate_hz) : timestamp_us(timestamp_us), rate_hz(rate_hz) {
+		free_heap = xPortGetFreeHeapSize();
+	}
 
 	void into_message(std::vector<uint8_t> &data);
 };

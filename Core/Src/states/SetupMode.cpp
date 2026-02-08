@@ -37,18 +37,18 @@ namespace SystemModes {
 		while (!this_task->is_task_dead) {
 			bool go_to_sleep = false;
 
-			auto motor_lock = motorControlMutex.get_lock();
+			auto lock = stateMutex.get_lock();
 
 //			MotorStats stats[4] = {
-//				motor_lock->get_motor_stats(M_TL),
+//				lock->motor_control.get_motor_stats(M_TL),
 //				motor_lock->get_motor_stats(M_TR),
 //				motor_lock->get_motor_stats(M_BL),
 //				motor_lock->get_motor_stats(M_BR)
 //			};
 
-			float batt_v = motor_lock->estimated_true_batt_v();
+			float batt_v = lock->motor_control.estimated_true_batt_v();
 
-			motor_lock.unlock();
+			lock.unlock();
 
 //			float total_current = (stats[0].current + stats[1].current + stats[2].current + stats[3].current);
 
@@ -67,6 +67,13 @@ namespace SystemModes {
 				ssd1306_WriteString(s, Font_6x8, White);
 
 				ssd1306_UpdateScreen();
+
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+				osDelay(500);
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+				osDelay(500);
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+				osDelay(500);
 
 //				auto sm_lock = systemModesSM.get_lock();
 //				sm_lock->process_event(EnterSleep {});
@@ -115,35 +122,30 @@ namespace SetupMode {
 
 //			msg.printDataToScreen(0, 0, 4, 6);
 
-			auto sm_lock = systemModesSM.get_lock();
+			auto lock = stateMutex.get_lock();
 
-			if (sm_lock->is<decltype(sml::state<SM>)>(sml::state<Unconnected>)) {
-				sm_lock->process_event(EnterConnected {});
+			if (lock->modes.is<decltype(sml::state<SM>)>(sml::state<Unconnected>)) {
+				lock->modes.process_event(EnterConnected {});
 			}
 
-			sm_lock.unlock();
+			lock.unlock();
 			
 			printf("Received message: %s, len: %d\n", msg.typeToString().c_str(), msg.data.size());
 
 			switch (msg.type()) {
 			case MESSAGE_TYPE_SEND_CONFIG: {
-				auto config_lock = configMutex.get_lock();
+				auto lock = stateMutex.get_lock();
 				printf("Send config recieved!\n");
 
-				*config_lock = msg.asConfig();
-				float x = config_lock->madgwickBeta;
+				lock->config = msg.asConfig();
+				float x = lock->config.madgwickBeta;
 
-				config_lock->save_into_flash();
+				lock->config.save_into_flash();
 
-//				auto data_lock = dataMutex.get_lock();
 //				config_lock->update_sensors(&data_lock->ak09940a_dev, &data_lock->icm42688_dev);
-//				data_lock.unlock();
 
-				config_lock.unlock();
-
-				auto data_lock = dataMutex.get_lock();
-				data_lock->localization.tuning_parameter = x;
-				data_lock.unlock();
+				lock->data.localization.tuning_parameter = x;
+				lock.unlock();
 				break;
 			} case MESSAGE_TYPE_ACTION: {
 				ActionMsg action = msg.asAction();
@@ -151,9 +153,9 @@ namespace SetupMode {
 				switch (action.type()) {
 				case ACTION_TYPE_SEND_CONFIG: {
 					printf("SENDING CONFIG NOW!!\n");
-					auto config_lock = configMutex.get_lock();
-					Message msg = Message::sendConfig(*config_lock);
-					config_lock.unlock();
+					auto lock = stateMutex.get_lock();
+					Message msg = Message::sendConfig(lock->config);
+					lock.unlock();
 
 					msg.send();
 					printf("SENT!!\n");
@@ -161,18 +163,18 @@ namespace SetupMode {
 				} case ACTION_TYPE_SET_MOTOR_SPEEDS: {
 					MotorSpeeds motor_speeds = action.asMotorSpeeds();
 //					printf("setting motor speeds: [%.4f, %.4f, %.4f, %.4f]\n", motor_speeds.speeds[0], motor_speeds.speeds[1], motor_speeds.speeds[2], motor_speeds.speeds[3]);
-					auto motor_lock = motorControlMutex.get_lock();
+					auto lock = stateMutex.get_lock();
 //					printf("In motor lock\n");
 
-					motor_lock->set_motor_speeds(motor_speeds.speeds);
+					lock->motor_control.set_motor_speeds(motor_speeds.speeds);
 
-					motor_lock.unlock();
+					lock.unlock();
 					break;
 				} case ACTION_TYPE_CALIBRATION_MSG: {
 					printf("STARTING CALIBRATION ROUTINE!\n");
-					auto sm_lock = systemModesSM.get_lock();
-					sm_lock->process_event(ConnectedMode::CalibrationStart {});
-					sm_lock.unlock();
+					auto lock = stateMutex.get_lock();
+					lock->modes.process_event(ConnectedMode::CalibrationStart {});
+					lock.unlock();
 
 					break;
 				} default: {
@@ -195,21 +197,19 @@ namespace SetupMode {
 		Task *this_task = (Task *)parameters;
 
 		while (!this_task->is_task_dead) {
-			auto data_lock = dataMutex.get_lock();
-			auto config_lock = configMutex.get_lock();
-			data_lock->adcData = AdcData::from_buffer();
-			data_lock->icm42688_output = data_lock->icm42688_dev.get_data_raw();
-			data_lock->ak09940a_output = data_lock->ak09940a_dev.single_measure_raw();
-			data_lock->localization.update(
-				config_lock->calibrated_acc(data_lock->icm42688_output.acc),
-				config_lock->calibrated_mag(data_lock->ak09940a_output.mag),
-				config_lock->calibrated_gyro(data_lock->icm42688_output.gyro)
+			auto lock = stateMutex.get_lock();
+			lock->data.adcData = AdcData::from_buffer();
+			lock->data.icm42688_output = lock->data.icm42688_dev.get_data_raw();
+			lock->data.ak09940a_output = lock->data.ak09940a_dev.single_measure_raw();
+			lock->data.localization.update(
+				lock->config.calibrated_acc(lock->data.icm42688_output.acc),
+				lock->config.calibrated_mag(lock->data.ak09940a_output.mag),
+				lock->config.calibrated_gyro(lock->data.icm42688_output.gyro)
 			);
 
-			LocalizedAccMag acc_mag = data_lock->localization.output().asLocalizedAccMag();
+			LocalizedAccMag acc_mag = lock->data.localization.output().asLocalizedAccMag();
 
-			config_lock.unlock();
-			data_lock.unlock();
+			lock.unlock();
 
 //			const float target = 0.0;
 //			const float measured = atan2(Z(acc_mag.mag), Y(acc_mag.mag));
@@ -241,22 +241,20 @@ namespace SetupMode {
 			last_t = HAL_GetTick();
 			OtherData other_data = OtherData((1000 * (uint64_t)last_t), rate_hz);
 
-			auto motor_lock = motorControlMutex.get_lock();
-			AllMotorStats stats = motor_lock->get_all_motor_stats();
-			motor_lock.unlock();
+			auto lock = stateMutex.get_lock();
+			AllMotorStats stats = lock->motor_control.get_all_motor_stats();
 
-			auto data_lock = dataMutex.get_lock();
-			data_lock->localization_output = data_lock->localization.output();
+			lock->data.localization_output = lock->data.localization.output();
 			Message msg = Message::sendData(
-					data_lock->adcData,
-					data_lock->ak09940a_output,
-					data_lock->icm42688_output,
+					lock->data.adcData,
+					lock->data.ak09940a_output,
+					lock->data.icm42688_output,
 					other_data,
-					data_lock->localization_output,
+					lock->data.localization_output,
 //					std::nullopt
 					stats
 			);
-			data_lock.unlock();
+			lock.unlock();
 
 			msg.send();
 
@@ -364,22 +362,22 @@ namespace SetupMode {
 
 				Vec3 vector;
 
-				auto lock = dataMutex.get_lock();
+				auto lock = stateMutex.get_lock();
 				switch (settings.type) {
 				case CALIBRATION_TYPE_MAG: {
-					AK09940A_Output mag_output = lock->ak09940a_dev.single_measure_raw();
+					AK09940A_Output mag_output = lock->data.ak09940a_dev.single_measure_raw();
 					for (int i = 0; i < 3; i++) {
 						vector[i] = static_cast<float>(mag_output.mag[i]);
 					}
 					break;
 				} case CALIBRATION_TYPE_ACC: {
-					ICM42688_Data icm_data = lock->icm42688_dev.get_data_raw();
+					ICM42688_Data icm_data = lock->data.icm42688_dev.get_data_raw();
 					for (int i = 0; i < 3; i++) {
 						vector[i] = icm_data.acc[i];
 					}
 					break;
 				} case CALIBRATION_TYPE_GYR: {
-					ICM42688_Data icm_data = lock->icm42688_dev.get_data_raw();
+					ICM42688_Data icm_data = lock->data.icm42688_dev.get_data_raw();
 					for (int i = 0; i < 3; i++) {
 						vector[i] = icm_data.gyro[i];
 					}
@@ -445,9 +443,9 @@ namespace SetupMode {
 		}
 		printCalibRoutine(6, msg);
 
-		auto sm_lock = systemModesSM.get_lock();
-		sm_lock->process_event(ConnectedMode::CalibrationStop {});
-		sm_lock.unlock();
+		auto lock = stateMutex.get_lock();
+		lock->modes.process_event(ConnectedMode::CalibrationStop {});
+		lock.unlock();
 
 		osThreadExit();
 	}
