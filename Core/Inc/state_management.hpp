@@ -129,6 +129,7 @@ namespace SetupMode {
 	void sendData(void *parameters);
 	void calibrationRoutine(void *parameters);
 	void debugPrinter(void *parameters);
+	void handleActionQueue(void *parameters);
 
 	namespace ConnectedMode {
 		static Task CALIBRATING_TASKS[] = {
@@ -140,8 +141,8 @@ namespace SetupMode {
 			Task(sendData, {.name = "sendData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(debugPrinter, {.name = "debugPrinter", .stack_size = 600, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+			Task(handleActionQueue, {.name = "handleAQ", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 		};
-
 
 		// Events
 		struct CalibrationStart {};
@@ -157,8 +158,8 @@ namespace SetupMode {
 			auto operator()() const {
 				return make_transition_table(
 					state<Calibrating> <= *state<SendingData> + event<CalibrationStart>,
-						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<4, SENDING_DATA_TASKS>),
-						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<4, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<5, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<5, SENDING_DATA_TASKS>),
 
 					state<SendingData> <= state<Calibrating> + event<CalibrationStop>,
 						                  state<Calibrating> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<1, CALIBRATING_TASKS>),
@@ -196,10 +197,12 @@ namespace SystemModes {
 	// Setup Tasks
 	void repeatEchoes(void* parameters);
 	void watchout(void* parameters);
+	void motor_current_control(void* parameters);
 
 	static Task SETUP_TASKS[] = {
 		Task(repeatEchoes, {.name = "echoReply", .stack_size = 400, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 		Task(watchout, {.name = "watchout", .stack_size = 1000, .priority = (osPriority_t) osPriorityHigh}, nullptr),
+		Task(motor_current_control, {.name = "motorLimiter", .stack_size = 1500, .priority = (osPriority_t) osPriorityHigh}, nullptr)
 	};
 
 	// Events
@@ -221,8 +224,8 @@ namespace SystemModes {
 				// toState <= fromState + event [guard] / action:
 				// On `Event` if `guard` is true perform `action` and transition from `fromState` to `toState`
 				state<Setup>  <= *idle + event<StartStateMachine>,
-					state<Setup> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<2, SETUP_TASKS>),
-					state<Setup> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<2, SETUP_TASKS>),
+					state<Setup> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<3, SETUP_TASKS>),
+					state<Setup> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<3, SETUP_TASKS>),
 
 				state<Active> <= state<Setup> + event<EnterActive>,
 
@@ -243,6 +246,7 @@ extern MutexLazy<sml::sm<SystemModes::SM>> systemModesSM;
 #include "localization.hpp"
 #include "MotorControl.hpp"
 #include "control_loops.hpp"
+#include "Message.hpp"
 
 struct Data {
 	AdcData adcData;
@@ -254,8 +258,41 @@ struct Data {
 	LocalizationOutput localization_output;
 };
 
+enum ControlLoopState {
+	CL_STATE_OFF = 0,
+	CL_STATE_VERTICAL_ROLL = 1,
+	CL_STATE_HORIZONTAL_ROLL = 2,
+	CL_STATE_PITCH = 3,
+	CL_STATE_YAW = 4,
+	CL_STATE_ALL_ORI = 5
+};
+
+struct ControlTargets {
+	float roll;
+	float pitch;
+	float yaw;
+};
+
 struct PIDs {
-	RollCL roll;
+	RollCL roll = RollCL();
+	OrientationCL oriCL = OrientationCL();
+	ActionItemMovingMode state = AQ_ITEM_MM_NONE;
+	ControlTargets targets = {0.0, 0.0, 0.0};
+	quat<float> target_ori = identity_quat<float>();
+	float speed = 0.0;
+};
+
+struct ActionQueueState {
+	ActionQueue aq;
+	int index;
+	bool changed = false;
+
+	ActionQueueState() { aq = ActionQueue(); index = 0; changed = false; }
+	ActionQueueState(ActionQueue aq) : aq(aq) { index = 0; changed = true; }
+	void shift() {
+		index++;
+		changed = true;
+	}
 };
 
 #include "config.hpp"
@@ -264,7 +301,8 @@ struct PIDs {
 extern MutexLazy<Data> dataMutex;
 extern MutexLazy<Config> configMutex;
 extern MutexLazy<MotorControl> motorControlMutex;
-//extern MutexLazy<PIDs> pidMutex;
+extern MutexLazy<PIDs> pidMutex;
+extern MutexLazy<ActionQueueState> actionQueueMutex;
 
 
 #endif /* INC_STATE_MANAGEMENT_HPP_ */

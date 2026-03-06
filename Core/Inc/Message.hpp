@@ -28,7 +28,7 @@
 #define FIRMWARE_VERSION_MAJOR 0
 #define FIRMWARE_VERSION_MINOR 1
 
-#define LARGEST_MESSAGE_TYPE_ID 7
+#define LARGEST_MESSAGE_TYPE_ID 10
 
 enum MessageType {
 	MESSAGE_TYPE_PING = 0, // Device and controller
@@ -39,6 +39,8 @@ enum MessageType {
 	MESSAGE_TYPE_TEXT = 5, // Device
 	MESSAGE_TYPE_CALIBRATION_DATA = 6, // Device
 	MESSAGE_TYPE_ECHO = 7, // Device
+	MESSAGE_TYPE_AQ = 8, // Device and controller
+	MESSAGE_TYPE_SEND_CURRENT_AQ = 9, // Device
 
 	MESSAGE_TYPE_INCORRECT_FORMAT = 255
 };
@@ -50,8 +52,15 @@ enum ActionType {
 	ACTION_TYPE_SET_MOTOR_SPEEDS = 2,
 	ACTION_TYPE_SEND_CONFIG = 3,
 	ACTION_TYPE_CALIBRATION_MSG = 4,
+	ACTION_TYPE_EDIT_CONTROL_LOOPS = 5,
 
 	ACTION_TYPE_NOT_AN_ACTION = 255
+};
+
+enum ControlLoopEdittingType {
+	CONTROL_LOOP_EDIT_START = 0,
+	CONTROL_LOOP_EDIT_STOP = 1,
+	CONTROL_LOOP_EDIT_CHANGE = 2,
 };
 
 struct MotorSpeeds {
@@ -114,8 +123,11 @@ public:
 struct OtherData {
 	uint64_t timestamp_us;
 	uint16_t rate_hz;
+	uint32_t free_heap;
 
-	OtherData(uint64_t timestamp_us, uint16_t rate_hz) : timestamp_us(timestamp_us), rate_hz(rate_hz) {}
+	OtherData(uint64_t timestamp_us, uint16_t rate_hz) : timestamp_us(timestamp_us), rate_hz(rate_hz) {
+		free_heap = xPortGetFreeHeapSize();
+	}
 
 	void into_message(std::vector<uint8_t> &data);
 };
@@ -129,6 +141,66 @@ enum EchoOrigin {
 #define DEFAULT_PING_WAIT_MS 100
 
 bool isDeviceConnected(uint32_t echo_timeout);
+
+// ---------------------------------------------------- Action Queue stuff ---------------------
+enum ActionQueueType {
+	AQ_TYPE_WAIT = 0,
+	AQ_TYPE_WAIT_FOR = 1,
+	AQ_TYPE_SET_MOVING_MODE = 2,
+	AQ_TYPE_START_RECORDING = 3,
+	AQ_TYPE_STOP_RECORDING = 4,
+	AQ_TYPE_SET_TARGETS = 5
+};
+
+struct AqWait { uint32_t wait_ms; };
+
+enum ActionItemWaitFor {
+	AQ_ITEM_WAIT_FOR_UNDERWATER = 0,
+	AQ_ITEM_WAIT_FOR_UPSIDEDOWN = 1,
+	AQ_ITEM_WAIT_FOR_BIG_MAGNET_NEARBY = 2,
+	AQ_ITEM_WAIT_FOR_SURFACED = 3
+};
+
+enum ActionItemMovingMode {
+	AQ_ITEM_MM_NONE = 0,
+	AQ_ITEM_MM_HOLDING_PATTERN = 1,
+	AQ_ITEM_MM_FORWARD = 2,
+	AQ_ITEM_MM_RETURN_TO_SURFACE = 3,
+	AQ_ITEM_MM_VERTICAL_ROLL_CL_TEST = 4,
+	AQ_ITEM_MM_MAINTAIN_ORI_TEST = 5
+};
+
+struct AqStartRecording {
+	uint32_t bitflags;
+
+	AqStartRecording(uint8_t bitflags) : bitflags(bitflags) {}
+	bool video() { return bitflags & 0x01; }
+	bool localizationData() { return bitflags & 0x02; }
+	bool rawData() { return bitflags & 0x04; }
+	bool powerUsageData() { return bitflags & 0x08; }
+};
+
+struct AqSetTargets {
+	quat<float> ori;
+	float speed;
+};
+
+class ActionQueue {
+private:
+    std::vector<uint8_t> data;
+
+    std::optional<int> nth_index(int n);
+public:
+    ActionQueue() { }
+    ActionQueue(std::vector<uint8_t> data) : data(data) { }
+
+    std::optional<ActionQueueType> get_nth_type(int n);
+    std::optional<AqWait> nth_as_wait(int n);
+    std::optional<ActionItemWaitFor> nth_as_wait_for(int n);
+    std::optional<ActionItemMovingMode> nth_as_moving_mode(int n);
+    std::optional<AqStartRecording> nth_as_start_recording(int n);
+    std::optional<AqSetTargets> nth_as_set_targets(int n);
+};
 
 // ---------------------------------------------------- Message Class ---------------------
 class Message {
@@ -165,6 +237,7 @@ public:
 	static Message sendConfig(Config &config);
 	static Message echo();
 	static Message echo(std::vector<uint8_t> v);
+	static Message currentActionNum(int i);
 
 	// Message operations
 	bool isValid();
@@ -177,6 +250,7 @@ public:
 	/// Extract Message types, assume Message::type is ALWAYS checked first
 	ActionMsg asAction();
 	EchoOrigin asEchoOrigin();
+	ActionQueue intoActionQueue();
 	Config asConfig();
 };
 

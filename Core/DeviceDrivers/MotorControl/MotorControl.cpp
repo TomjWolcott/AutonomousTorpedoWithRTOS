@@ -218,6 +218,7 @@ std::array<SetMotorInputResult, 4> MotorControl::set_motor_inputs(MotorInput inp
 
 std::array<SetMotorInputResult, 4> MotorControl::set_motor_speeds(std::array<float,4> speeds) {
 	std::array<SetMotorInputResult, 4> results;
+	data = AdcData::from_buffer();
 
 	for (int i = 0; i < 4; i++)
 		set_motor_speed(speeds[i], (MotorId)i);
@@ -305,6 +306,18 @@ float MotorControl::estimated_true_batt_v() {
 const float DRV8213_R_IPROPI = 677.0; // ohms
 const float DRV8213_V_REF = 0.501; // volts
 const float DRV8213_GAINS[3] = { 205.0, 1050.0, 4900.0 };
+
+float MotorControl::total_current_usage() {
+	AdcData data = AdcData::from_buffer();
+	std::array<float, 4> v_ipropi = data.ipropis_v();
+	float total_current = 0.0;
+
+	for (int i = 0; i < 4; i++) {
+		float motor_current = 1000000.0 * v_ipropi[i] / (DRV8213_R_IPROPI * DRV8213_GAINS[current_inputs[i].gainsel]);
+	}
+
+	return total_current;
+}
 
 MotorStats MotorControl::get_motor_stats(MotorId id) {
 	data = AdcData::from_buffer();

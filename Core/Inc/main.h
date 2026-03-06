@@ -76,6 +76,8 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+extern SemaphoreHandle_t ssd1306_mutex;
+
 typedef struct {
 	uint32_t tick_ms;
 	uint32_t tick_us;

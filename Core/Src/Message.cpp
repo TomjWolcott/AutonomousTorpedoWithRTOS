@@ -139,6 +139,11 @@ void OtherData::into_message(std::vector<uint8_t> &data) {
 
 	data.push_back((uint8_t)FIRMWARE_VERSION_MAJOR);
 	data.push_back((uint8_t)FIRMWARE_VERSION_MINOR);
+
+	data.push_back((free_heap >> 24) & 0xFF);
+	data.push_back((free_heap >> 16) & 0xFF);
+	data.push_back((free_heap >> 8) & 0xFF);
+	data.push_back(free_heap & 0xFF);
 }
 
 Message Message::sendData(
@@ -332,6 +337,10 @@ std::string Message::typeToString() {
 			return "TEXT";
 		case MESSAGE_TYPE_ECHO:
 			return "ECHO";
+		case MESSAGE_TYPE_AQ:
+			return "ACTION_QUEUE";
+		case MESSAGE_TYPE_SEND_CURRENT_AQ:
+			return "SEND_CURRENT_AQ_INDEX";
 		default:
 			return "INCORRECT_FORMAT";
 	}
@@ -430,6 +439,122 @@ bool isDeviceConnected(uint32_t echo_timeout) {
 	return Message::receiveWait([&echo_out](Message &msg) {
 		return msg.data == echo_out.data;
 	}, echo_timeout).has_value();
+}
+
+// Action Queue
+
+ActionQueue Message::intoActionQueue() {
+	data.erase(data.begin(), data.begin()+6);
+	return ActionQueue(data);
+}
+
+std::optional<int> ActionQueue::nth_index(int n) {
+	int i = 0;
+
+	while (i+1 < (int)(data.size()) && n > 0) {
+		i += data[i+1];
+		n--;
+	}
+
+	return (i < (int)(data.size())) ? std::optional{i} : std::nullopt;
+
+}
+
+std::optional<ActionQueueType> ActionQueue::get_nth_type(int n) {
+	std::optional<int> i_opt = nth_index(n);
+	if (!i_opt.has_value()) { return std::nullopt; }
+	int i = i_opt.value();
+
+	return std::optional{(ActionQueueType)(data[i])};
+}
+
+std::optional<AqWait> ActionQueue::nth_as_wait(int n) {
+	std::optional<int> i_opt = nth_index(n);
+	if (!i_opt.has_value()) { return std::nullopt; }
+	int i = i_opt.value();
+
+	if ((ActionQueueType)(data[i]) != AQ_TYPE_WAIT) { return std::nullopt; }
+
+	uint32_t ms = (uint32_t)(data[i+2]) +
+		((uint32_t)(data[i+3]) << 8) +
+		((uint32_t)(data[i+4]) << 16) +
+		((uint32_t)(data[i+5]) << 24);
+
+	return std::optional{(AqWait){ ms }};
+}
+
+std::optional<ActionItemWaitFor> ActionQueue::nth_as_wait_for(int n) {
+	std::optional<int> i_opt = nth_index(n);
+	if (!i_opt.has_value()) { return std::nullopt; }
+	int i = i_opt.value();
+
+	if ((ActionQueueType)(data[i]) != AQ_TYPE_WAIT_FOR) { return std::nullopt; }
+
+	return std::optional{(ActionItemWaitFor)(data[i+2])};
+}
+
+std::optional<ActionItemMovingMode> ActionQueue::nth_as_moving_mode(int n) {
+	std::optional<int> i_opt = nth_index(n);
+	if (!i_opt.has_value()) { return std::nullopt; }
+	int i = i_opt.value();
+
+	if ((ActionQueueType)(data[i]) != AQ_TYPE_SET_MOVING_MODE) { return std::nullopt; }
+
+	return std::optional{(ActionItemMovingMode)(data[i+2])};
+
+}
+
+std::optional<AqStartRecording> ActionQueue::nth_as_start_recording(int n) {
+	std::optional<int> i_opt = nth_index(n);
+	if (!i_opt.has_value()) { return std::nullopt; }
+	int i = i_opt.value();
+
+	if ((ActionQueueType)(data[i]) != AQ_TYPE_WAIT) { return std::nullopt; }
+
+	uint32_t bitflags = (uint32_t)(data[i+2]) +
+		((uint32_t)(data[i+3]) << 8) +
+		((uint32_t)(data[i+4]) << 16);
+
+	return std::optional{(AqStartRecording){ bitflags }};
+}
+
+std::optional<AqSetTargets> ActionQueue::nth_as_set_targets(int n) {
+	AqSetTargets output;
+	std::optional<int> i_opt = nth_index(n);
+	if (!i_opt.has_value()) { return std::nullopt; }
+	int i = i_opt.value();
+
+	if ((ActionQueueType)(data[i]) != AQ_TYPE_SET_TARGETS) { return std::nullopt; }
+
+	float floats[5];
+
+	for (int j = 0; j < 5; j++) {
+		uint32_t float_data = ((uint32_t)(data[i+2 + 4*j]) << 24) |
+			((uint32_t)(data[i+3 + 4*j]) << 16) |
+			((uint32_t)(data[i+4 + 4*j]) << 8) |
+			((uint32_t)(data[i+5 + 4*j]));
+
+		floats[j] = std::bit_cast<float>(float_data);
+	}
+
+	output.ori = quat<float>{floats[1], floats[2], floats[3], floats[0]};
+	output.speed = floats[4];
+
+	return output;
+}
+
+Message Message::currentActionNum(int i) {
+	std::vector<uint8_t> data = {
+		MESSAGE_HEADER[0],
+		MESSAGE_HEADER[1],
+		MESSAGE_HEADER[2],
+		MESSAGE_HEADER[3],
+		7,
+		MESSAGE_TYPE_SEND_CURRENT_AQ,
+		(uint8_t)i
+	};
+
+	return Message(data);
 }
 
 // Config

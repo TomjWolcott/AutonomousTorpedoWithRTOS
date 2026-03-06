@@ -28,10 +28,12 @@ struct MotorInput {
 };
 
 struct MotorStats {
-	float input; // [-1, 1]
-	float current; // (Amps)
-	float voltage; // (Volts)
-	float power; // (Watts)
+	float input = 0.0; // [-1, 1]
+	float current = 0.0; // (Amps)
+	float voltage = 0.0; // (Volts)
+	float power = 0.0; // (Watts)
+
+	MotorStats() {}
 
 	MotorStats(float input, float current, float voltage, float power)
 		: input(input), current(current), voltage(voltage), power(power) {}
@@ -123,11 +125,15 @@ private:
 
 	MotorConfig config = MotorConfig();
 	float max_speed = 1.0;
-	float global_speed_multiplier = 1.0;
 	float max_motor_current = 2.0;
 
 	SetMotorInputResult raw_set_motor_speed(float speed, GainselType gainsel, MotorIndex index);
+	SetMotorInputResult set_motor_input(MotorInput input, MotorId id);
+	SetMotorInputResult set_motor_speed(float driveSpeed, MotorId id);
+	SetMotorInputResult set_motor_gainsel(GainselType gainsel, MotorId id);
+	float total_current_usage();
 public:
+	float global_speed_multiplier = 1.0;
 	AdcData data;
 	MotorControl() {}
 
@@ -140,10 +146,6 @@ public:
 	std::array<SetMotorInputResult, 4> set_motor_inputs(MotorInput inputs[4]);
 	std::array<SetMotorInputResult, 4> set_motor_speeds(std::array<float,4> speeds);
 	std::array<SetMotorInputResult, 4> set_motor_speeds_frpy(std::array<float,4> speeds);
-
-	SetMotorInputResult set_motor_input(MotorInput input, MotorId id);
-	SetMotorInputResult set_motor_speed(float driveSpeed, MotorId id);
-	SetMotorInputResult set_motor_gainsel(GainselType gainsel, MotorId id);
 
 	float estimated_true_batt_v();
 	MotorStats get_motor_stats(MotorId id);

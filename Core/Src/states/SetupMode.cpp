@@ -33,8 +33,11 @@ namespace SystemModes {
 
 	void __NO_RETURN watchout(void *parameters) {
 		Task *this_task = (Task *)parameters;
+		char s[100];
+		int i = 0;
 
 		while (!this_task->is_task_dead) {
+			i = (i + 1) % 30;
 			bool go_to_sleep = false;
 
 			auto motor_lock = motorControlMutex.get_lock();
@@ -57,20 +60,23 @@ namespace SystemModes {
 			go_to_sleep |= batt_v < 3.6;
 
 			if (go_to_sleep) {
-//				printf("GOING TO SLEEP: batt_v: %.3f Volts, total_current: %.3f Amps\n", batt_v, total_current);
-				ssd1306_SetCursor(0, 0);
-				ssd1306_WriteString("BATT VOLTAGE LOW", Font_6x8, White);
-
-				char s[100];
-				ssd1306_SetCursor(0, 8);
-				sprintf(s, "%.5f V", batt_v);
+				xSemaphoreTake(ssd1306_mutex, portMAX_DELAY);
+				ssd1306_SetCursor(0, 24);
+				sprintf(s, "!!!LOW: %.2fV!!!", batt_v);
 				ssd1306_WriteString(s, Font_6x8, White);
-
 				ssd1306_UpdateScreen();
+				xSemaphoreGive(ssd1306_mutex);
 
 //				auto sm_lock = systemModesSM.get_lock();
 //				sm_lock->process_event(EnterSleep {});
 //				sm_lock.unlock();
+			} else if (i == 0) {
+				xSemaphoreTake(ssd1306_mutex, portMAX_DELAY);
+				ssd1306_SetCursor(0, 24);
+				sprintf(s, "  Batt: %.2fV   ", batt_v);
+				ssd1306_WriteString(s, Font_6x8, White);
+				ssd1306_UpdateScreen();
+				xSemaphoreGive(ssd1306_mutex);
 			}
 
 			osDelay(10);
@@ -78,6 +84,49 @@ namespace SystemModes {
 
 		osThreadExit();
 	}
+
+	void __NO_RETURN motor_current_control(void *parameters) {
+		Task *this_task = (Task *)parameters;
+		MotorStats stats[4];
+		float total_current = 0.0;
+		float motorMult = 1.0;
+
+		while (!this_task->is_task_dead) {
+			auto motor_lock = motorControlMutex.get_lock();
+			motor_lock->global_speed_multiplier = motorMult;
+			for (int i = 0; i < 4; i++) {
+				stats[i] = motor_lock->get_motor_stats((MotorId)i);
+			}
+			motor_lock.unlock();
+
+			total_current = 0.0;
+			for (int i = 0; i < 4; i++) {
+				total_current += stats[i].current;
+			}
+
+			if (total_current >= 5.0) {
+				motorMult *= 0.995;
+				printf("reducing mult to %.2f\n", motorMult);
+			} else if (motorMult < 1.0) {
+				motorMult = fmin(1.0, motorMult / 0.995);
+				printf("increasing mult to %.2f\n", motorMult);
+			}
+
+			osDelay(20);
+		}
+
+		osThreadExit();
+	}
+}
+
+namespace ActionQueueTasks {
+//	static void __NO_RETURN wait(void *parameters) {
+//		uint32_t ms = *((uint32_t *)parameters);
+//
+//		osDelay(ms);
+//
+//		osThreadExit();
+//	}
 }
 
 namespace SetupMode {
@@ -179,6 +228,10 @@ namespace SetupMode {
 
 				}}
 				break;
+			} case MESSAGE_TYPE_AQ: {
+				auto aq_lock = actionQueueMutex.get_lock();
+				*aq_lock = ActionQueue(msg.intoActionQueue());
+				aq_lock.unlock();
 			} default: {
 
 			}}
@@ -206,21 +259,46 @@ namespace SetupMode {
 				config_lock->calibrated_gyro(data_lock->icm42688_output.gyro)
 			);
 
-			LocalizedAccMag acc_mag = data_lock->localization.output().asLocalizedAccMag();
+			quat<float> ori_quat = data_lock->localization.output().orientation;
 
 			config_lock.unlock();
 			data_lock.unlock();
 
-//			const float target = 0.0;
-//			const float measured = atan2(Z(acc_mag.mag), Y(acc_mag.mag));
+			std::optional<std::array<float, 4>> motor_speeds_frpy = std::nullopt;
 
-//			auto pid_lock = pidMutex.get_lock();
-//			const float output = pid_lock->roll.update(target, measured);
-//			pid_lock.unlock();
-//
-//			auto motor_lock = motorControlMutex.get_lock();
-//			motor_lock->set_motor_speeds_frpy({0, output, 0, 0});
-//			motor_lock.unlock();
+			auto pid_lock = pidMutex.get_lock();
+			switch (pid_lock->state) {
+			case AQ_ITEM_MM_VERTICAL_ROLL_CL_TEST: {
+				const vec<float,3> dir = ori_quat * vec<float,3>{0, 0, 1};
+				const float target = pid_lock->targets.roll;
+				const float measured = atan2(X(dir), Y(dir));
+
+				const float output = pid_lock->roll.update(target, measured);
+
+				motor_speeds_frpy = {0, output, 0, 0};
+				break;
+			} case AQ_ITEM_MM_MAINTAIN_ORI_TEST: {
+				RPYOutputs rpy_outputs = pid_lock->oriCL.update(pid_lock->target_ori, ori_quat);
+
+				motor_speeds_frpy = {0, rpy_outputs.roll, rpy_outputs.pitch, rpy_outputs.yaw};
+				break;
+			} case AQ_ITEM_MM_FORWARD: {
+				RPYOutputs rpy_outputs = pid_lock->oriCL.update(pid_lock->target_ori, ori_quat);
+
+				motor_speeds_frpy = {pid_lock->speed, rpy_outputs.roll, rpy_outputs.pitch, rpy_outputs.yaw};
+				break;
+			} case AQ_ITEM_MM_NONE: {
+				break;
+			} default: {
+
+			}}
+			pid_lock.unlock();
+
+			if (motor_speeds_frpy.has_value()) {
+				auto motor_lock = motorControlMutex.get_lock();
+				motor_lock->set_motor_speeds_frpy(motor_speeds_frpy.value());
+				motor_lock.unlock();
+			}
 
 			collectDataCount++;
 //			osDelay(100);
@@ -277,6 +355,8 @@ namespace SetupMode {
 //			MotorStats stats = motor_lock->get_motor_stats(M_TL);
 //			AdcData data = motor_lock->data;
 //			motor_lock.unlock();
+//			auto x = pvPortMalloc(20);
+//			printf("I just Malloc'd\n");
 //
 //			printf("tl current: %.5f A, voltage: %.5f V, power: %.5f W, ipropi_v = %.5f, ipropi_mv = %d\n", stats.current, stats.voltage, stats.power, data.ipropis_v()[3], data.ipropis_mv[3]);
 
@@ -295,6 +375,158 @@ namespace SetupMode {
 
 
 			osDelay(500);
+		}
+
+		osThreadExit();
+	}
+
+	const uint32_t OLED_UPDATE_FREQ = 10; // How often the OLED will update in Hz
+
+	void __NO_RETURN handleActionQueue(void *parameters) {
+		Task *this_task = (Task *)parameters;
+//		int prevIndex = -1;
+		char s[100];
+
+		while (!this_task->is_task_dead) {
+			auto aq_lock = actionQueueMutex.get_lock();
+			int index = aq_lock->index;
+			bool changed = aq_lock->changed;
+			std::optional<ActionQueueType> item_type_opt = aq_lock->aq.get_nth_type(aq_lock->index);
+			aq_lock.unlock();
+
+			if (changed) {
+				Message::currentActionNum(index).send();
+			}
+
+			if (changed && item_type_opt.has_value()) {
+				switch (item_type_opt.value()) {
+				case AQ_TYPE_WAIT: {
+					auto aq_lock = actionQueueMutex.get_lock();
+					AqWait aq_wait = aq_lock->aq.nth_as_wait(aq_lock->index).value();
+					aq_lock->shift();
+					aq_lock.unlock();
+
+					uint32_t num_updates = (OLED_UPDATE_FREQ * aq_wait.wait_ms) / 1000;
+					uint32_t time_left = aq_wait.wait_ms;
+
+					while (time_left > 0) {
+						uint32_t dt = (
+							num_updates == 0 ||
+							(aq_wait.wait_ms / num_updates) == 0
+						) ? time_left : std::min(time_left, aq_wait.wait_ms / num_updates);
+
+						if (xSemaphoreTake(ssd1306_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+							ssd1306_SetCursor(0, 0);
+							sprintf(s, "Waiting(%dms)       ", (int)time_left);
+							ssd1306_WriteString(s, Font_6x8, White);
+							ssd1306_UpdateScreen();
+							xSemaphoreGive(ssd1306_mutex);
+						}
+
+						osDelay(pdMS_TO_TICKS(dt));
+						time_left -= dt;
+					}
+
+					xSemaphoreTake(ssd1306_mutex, portMAX_DELAY);
+					ssd1306_SetCursor(0, 0);
+					sprintf(s, "                     ");
+					ssd1306_WriteString(s, Font_6x8, White);
+					ssd1306_UpdateScreen();
+					xSemaphoreGive(ssd1306_mutex);
+					break;
+				} case AQ_TYPE_WAIT_FOR: {
+					auto aq_lock = actionQueueMutex.get_lock();
+					ActionItemWaitFor aq_wait_for = aq_lock->aq.nth_as_wait_for(aq_lock->index).value();
+					aq_lock->shift();
+					aq_lock.unlock();
+					int req_condition_mets = 10;
+
+					switch (aq_wait_for) {
+					case AQ_ITEM_WAIT_FOR_UPSIDEDOWN: {
+						xSemaphoreTake(ssd1306_mutex, portMAX_DELAY);
+						ssd1306_SetCursor(0, 0);
+						sprintf(s, "Waiting(%d left)", req_condition_mets);
+						ssd1306_WriteString(s, Font_6x8, White);
+						ssd1306_UpdateScreen();
+						xSemaphoreGive(ssd1306_mutex);
+
+						while (req_condition_mets > 0) {
+							auto data_lock = dataMutex.get_lock();
+							LocalizedAccMag acc_mag = data_lock->localization.output().asLocalizedAccMag();
+							data_lock.unlock();
+
+							// Gravity must be pointing in the +z direction (aka the torpedo must be upside down) for req_condition_mets counts
+							if (Z(acc_mag.acc) > 0.9) {
+								req_condition_mets--;
+
+								if (xSemaphoreTake(ssd1306_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+									ssd1306_SetCursor(0, 0);
+									sprintf(s, "Waiting(%d left)     ", req_condition_mets);
+									ssd1306_WriteString(s, Font_6x8, White);
+									ssd1306_UpdateScreen();
+									xSemaphoreGive(ssd1306_mutex);
+								}
+							}
+
+							osDelay(200);
+						}
+						break;
+					}}
+
+					xSemaphoreTake(ssd1306_mutex, portMAX_DELAY);
+					ssd1306_SetCursor(0, 0);
+					sprintf(s, "                     ");
+					ssd1306_WriteString(s, Font_6x8, White);
+					ssd1306_UpdateScreen();
+					xSemaphoreGive(ssd1306_mutex);
+					break;
+				} case AQ_TYPE_SET_MOVING_MODE: {
+					auto aq_lock = actionQueueMutex.get_lock();
+					ActionItemMovingMode aq_mm = aq_lock->aq.nth_as_moving_mode(aq_lock->index).value();
+					aq_lock->shift();
+					aq_lock.unlock();
+
+					if (aq_mm == AQ_ITEM_MM_NONE) {
+						auto motor_lock = motorControlMutex.get_lock();
+						motor_lock->set_motor_speeds_frpy({0, 0, 0, 0});
+						motor_lock.unlock();
+					}
+
+					auto pid_lock = pidMutex.get_lock();
+					pid_lock->state = aq_mm;
+					pid_lock.unlock();
+					break;
+				} case AQ_TYPE_START_RECORDING: {
+					auto aq_lock = actionQueueMutex.get_lock();
+					AqStartRecording start_recording = aq_lock->aq.nth_as_start_recording(aq_lock->index).value();
+					aq_lock->shift();
+					aq_lock.unlock();
+					break;
+				} case AQ_TYPE_STOP_RECORDING: {
+					auto aq_lock = actionQueueMutex.get_lock();
+					aq_lock->shift();
+					aq_lock.unlock();
+					break;
+				} case AQ_TYPE_SET_TARGETS: {
+					auto aq_lock = actionQueueMutex.get_lock();
+					AqSetTargets set_targets = aq_lock->aq.nth_as_set_targets(aq_lock->index).value();
+					aq_lock->shift();
+					aq_lock.unlock();
+
+					auto pid_lock = pidMutex.get_lock();
+					pid_lock->target_ori = set_targets.ori;
+					pid_lock->speed = set_targets.speed;
+					pid_lock.unlock();
+					break;
+				} default: {
+
+				}}
+			} else {
+				auto aq_lock = actionQueueMutex.get_lock();
+				aq_lock->changed = false;
+				aq_lock.unlock();
+				osDelay(500);
+			}
 		}
 
 		osThreadExit();
@@ -351,6 +583,7 @@ namespace SetupMode {
 					settings = msg.asAction().asCalibrationSettings();
 				}
 			}
+
 			printCalibRoutine(3, msg);
 
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);

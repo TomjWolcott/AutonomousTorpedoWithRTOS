@@ -16,9 +16,11 @@ MutexLazy<sml::sm<SystemModes::SM>> systemModesSM = MutexLazy<sml::sm<SystemMode
 MutexLazy<Data> dataMutex = MutexLazy<Data>();
 MutexLazy<Config> configMutex;
 MutexLazy<MotorControl> motorControlMutex;
-//MutexLazy<PIDs> pidMutex;
+MutexLazy<PIDs> pidMutex;
+MutexLazy<ActionQueueState> actionQueueMutex;
 
 extern "C" __NO_RETURN void cppMainTask(void *argument) {
+	ssd1306_Init();
 	initADC();
 
 	configMutex = MutexLazy<Config>(Config::from_flash());
@@ -28,9 +30,13 @@ extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	motor_control.initialize_pwm();
 	motorControlMutex = MutexLazy<MotorControl>(motor_control);
 
-//	PIDs pids;
-//	pids.roll = RollCL(0.1, 0.0, 0.0, -1.0, 1.0, -10.0, 10.0);
-//	pidMutex = MutexLazy<PIDs>(pids);
+	PIDs pids;
+	pids.roll = RollCL(PidParams(0.3, 0.2, 0.1, -1.0, 1.0, -10.0, 10.0));
+	pids.oriCL = OrientationCL(PidParams(0.2, 0.0, 0.0, -1.0, 1.0, -10.0, 10.0));
+	pidMutex = MutexLazy<PIDs>(pids);
+
+	actionQueueMutex = MutexLazy<ActionQueueState>(ActionQueueState());
+	actionQueueMutex.ensureInitialized();
 
 	auto data_lock = dataMutex.get_lock();
 	data_lock->ak09940a_dev = AK09940A_Dev();
@@ -43,9 +49,9 @@ extern "C" __NO_RETURN void cppMainTask(void *argument) {
 
 	data_lock.unlock();
 
-	ssd1306_SetCursor(0, 0);
-	ssd1306_WriteString("2025/2026 Winter", Font_6x8, White);
-	ssd1306_UpdateScreen();
+//	ssd1306_SetCursor(0, 0);
+//	ssd1306_WriteString("2025/2026 Winter", Font_6x8, White);
+//	ssd1306_UpdateScreen();
 
 	auto sm_lock = systemModesSM.get_lock();
 	sm_lock->process_event(SystemModes::StartStateMachine{});

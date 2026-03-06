@@ -97,6 +97,7 @@ void StartDefaultTask(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+SemaphoreHandle_t ssd1306_mutex;
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size) {
 	if (huart->Instance == UART4) {
@@ -224,15 +225,15 @@ int main(void)
 //    HAL_FLASHEx_OBProgram(&ob_cfg);
 
 
-//	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-//	HAL_Delay(500);
-//	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-//	HAL_Delay(1000);
-//	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-//	HAL_Delay(500);
-//	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-//	HAL_Delay(1000);
-//	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+	HAL_Delay(500);
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+	HAL_Delay(1000);
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+	HAL_Delay(500);
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+	HAL_Delay(1000);
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 	HAL_Delay(2000);
 
 //	print_out("INITIALIZE");=
@@ -293,7 +294,6 @@ int main(void)
 	devices.ms5837_dev = ms5837_dev;
 */
 	// SSD1306
-	ssd1306_Init();
 
 
 	// VL53L1X
@@ -304,6 +304,7 @@ int main(void)
   osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
+  ssd1306_mutex = xSemaphoreCreateMutex();
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
