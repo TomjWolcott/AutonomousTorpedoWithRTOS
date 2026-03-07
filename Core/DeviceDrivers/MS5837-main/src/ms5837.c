@@ -121,7 +121,7 @@ bool ms5837_read_calibration_data( ms5837_t *sensor )
     uint8_t version = (sensor->calibration_data[C0_VERSION] >> 5) & 0x7F;
     sensor->variant = version;  // TODO map to an enum here
 
-    printf("MS5837 Version: %X", version);
+    printf("MS5837 Version: %X\n", version);
 
     return sensor->calibration_loaded;
 }

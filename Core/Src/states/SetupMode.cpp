@@ -151,7 +151,7 @@ namespace SetupMode {
 		while (!this_task->is_task_dead) {
 			stack_expense[1] = 4*uxTaskGetStackHighWaterMark(NULL);
 			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-			printf("Hi!");
+			printf("Hi!\n");
 			osDelay(500);
 		}
 
@@ -251,6 +251,7 @@ namespace SetupMode {
 		Task *this_task = (Task *)parameters;
 
 		while (!this_task->is_task_dead) {
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 			auto data_lock = dataMutex.get_lock();
 			auto config_lock = configMutex.get_lock();
 			data_lock->adcData = AdcData::from_buffer();
@@ -316,6 +317,7 @@ namespace SetupMode {
 		uint32_t last_t = HAL_GetTick();
 
 		while (!this_task->is_task_dead) {
+			printf("sendData\n");
 			uint16_t rate_hz = 1000 * collectDataCount / (HAL_GetTick() - last_t);
 			collectDataCount = 0;
 
@@ -326,9 +328,9 @@ namespace SetupMode {
 			AllMotorStats stats = motor_lock->get_all_motor_stats();
 			motor_lock.unlock();
 
-			auto outer_data_lock = outerDataMutex.get_lock();
-			ms5837_output_t ms5837_data = outer_data_lock->ms5837_output;
-			outer_data_lock.unlock();
+//			auto outer_data_lock = outerDataMutex.get_lock();
+//			ms5837_output_t ms5837_data = outer_data_lock->ms5837_output;
+//			outer_data_lock.unlock();
 
 			auto data_lock = dataMutex.get_lock();
 			data_lock->localization_output = data_lock->localization.output();
@@ -336,7 +338,8 @@ namespace SetupMode {
 					data_lock->adcData,
 					data_lock->ak09940a_output,
 					data_lock->icm42688_output,
-					ms5837_data,
+//					ms5837_data,
+					(ms5837_output_t){5.0,6.0, 7.0},
 					other_data,
 					data_lock->localization_output,
 					stats
@@ -409,13 +412,13 @@ namespace SetupMode {
 //				stats.stats[3].voltage
 //			);
 
-			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-			std::optional<Message> msg_opt = Message::sendTaskInfo();
-
-			if (msg_opt.has_value()) {
-				msg_opt.value().send();
-			}
-
+//			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+//			std::optional<Message> msg_opt = Message::sendTaskInfo();
+//
+//			if (msg_opt.has_value()) {
+//				msg_opt.value().send();
+//			}
+			printf("debugPrinter\n");
 			osDelay(500);
 		}
 

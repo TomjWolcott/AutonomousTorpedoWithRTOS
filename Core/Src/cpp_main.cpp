@@ -24,13 +24,6 @@ extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	ssd1306_Init();
 	initADC();
 
-	OuterData outer_data;
-	ms5837_reset( &outer_data.ms5837 );
-	osDelay(10);
-	ms5837_read_calibration_data( &outer_data.ms5837 );
-	outerDataMutex = MutexLazy<OuterData>(outer_data);
-	outerDataMutex.ensureInitialized();
-
 	configMutex = MutexLazy<Config>(Config::from_flash());
 	configMutex.ensureInitialized();
 
@@ -56,6 +49,13 @@ extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	data_lock->icm42688_dev.setGyroFS(ICM42688::GyroFS::dps62_5);
 
 	data_lock.unlock();
+
+	OuterData outer_data;
+	ms5837_reset( &outer_data.ms5837 );
+	osDelay(10);
+	ms5837_read_calibration_data( &outer_data.ms5837 );
+	outerDataMutex = MutexLazy<OuterData>(outer_data);
+	outerDataMutex.ensureInitialized();
 
 //	ssd1306_SetCursor(0, 0);
 //	ssd1306_WriteString("2025/2026 Winter", Font_6x8, White);
