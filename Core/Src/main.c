@@ -98,6 +98,8 @@ void StartDefaultTask(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 SemaphoreHandle_t ssd1306_mutex;
+SemaphoreHandle_t i2c1_mutex;
+SemaphoreHandle_t i2c2_mutex;
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size) {
 	if (huart->Instance == UART4) {
@@ -305,6 +307,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_MUTEX */
   ssd1306_mutex = xSemaphoreCreateMutex();
+  i2c1_mutex = xSemaphoreCreateMutex();
+  i2c2_mutex = xSemaphoreCreateMutex();
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 

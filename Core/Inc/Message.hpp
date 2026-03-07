@@ -24,6 +24,7 @@
 #include "config.hpp"
 #include "localization.hpp"
 #include "MotorControl.hpp"
+#include "ms5837.h"
 
 #define FIRMWARE_VERSION_MAJOR 0
 #define FIRMWARE_VERSION_MINOR 1
@@ -41,6 +42,7 @@ enum MessageType {
 	MESSAGE_TYPE_ECHO = 7, // Device
 	MESSAGE_TYPE_AQ = 8, // Device and controller
 	MESSAGE_TYPE_SEND_CURRENT_AQ = 9, // Device
+	MESSAGE_TYPE_TASK_INFO = 10, // Device
 
 	MESSAGE_TYPE_INCORRECT_FORMAT = 255
 };
@@ -115,7 +117,7 @@ public:
 #define SendDataAdcData 0x01
 #define SendDataMag 0x02
 #define SendDataAccGyro 0x04
-#define SendDataDepthTemp 0x08
+#define SendDataPressureDepthTemp 0x08
 #define SendDataLocalizedData 0x10
 #define SendDataMotorData 0x20
 #define SendDataOtherInfo 0x40
@@ -229,6 +231,7 @@ public:
 		std::optional<AdcData> adcData,
 		std::optional<AK09940A_Output> ak09940a_output,
 		std::optional<ICM42688_Data> icm42688_data,
+		std::optional<ms5837_output_t> ms5837_data,
 		std::optional<OtherData> other_data,
 		std::optional<LocalizationOutput> localization_output,
 		std::optional<AllMotorStats> motor_stats
@@ -238,6 +241,7 @@ public:
 	static Message echo();
 	static Message echo(std::vector<uint8_t> v);
 	static Message currentActionNum(int i);
+	static std::optional<Message> sendTaskInfo();
 
 	// Message operations
 	bool isValid();

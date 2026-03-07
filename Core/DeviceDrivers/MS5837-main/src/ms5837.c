@@ -56,6 +56,7 @@ void ms5837_i2c_write( ms5837_t *sensor, uint8_t command );
 
 void ms5837_i2c_read( ms5837_t *sensor, uint8_t command, uint8_t *data, uint8_t num_bytes )
 {
+//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
 	int status = HAL_I2C_Mem_Read(
 	  &MS5837_I2C_PORT,
 	  MS5837_ADDR,
@@ -63,10 +64,7 @@ void ms5837_i2c_read( ms5837_t *sensor, uint8_t command, uint8_t *data, uint8_t 
 	  data, num_bytes,
 	  HAL_MAX_DELAY
 	);
-
-//	char s[100];
-//    sprintf(s, "MS5837 read status: %d, HAL_OK: %d", status, HAL_OK);
-//    print_out(s);
+//    xSemaphoreGive(i2c2_mutex);
 }
 
 void ms5837_i2c_write( ms5837_t *sensor, uint8_t command )
@@ -74,6 +72,7 @@ void ms5837_i2c_write( ms5837_t *sensor, uint8_t command )
 	int data = 0;
 
 	// Yes, I know it says read.  This chip doesn't need to be writen to I guess smh so these are for just telling the chip what to do i guess
+//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
 	int status = HAL_I2C_Mem_Read(
 	  &MS5837_I2C_PORT,
 	  MS5837_ADDR,
@@ -81,10 +80,7 @@ void ms5837_i2c_write( ms5837_t *sensor, uint8_t command )
 	  &data, 1,
 	  HAL_MAX_DELAY
 	);
-
-//	char s[100];
-//    sprintf(s, "MS5837 write status: %d, HAL_OK: %d", status, HAL_OK);
-//    print_out(s);
+//    xSemaphoreGive(i2c2_mutex);
 }
 
 // ---------------------------------------------------------------------
@@ -125,9 +121,7 @@ bool ms5837_read_calibration_data( ms5837_t *sensor )
     uint8_t version = (sensor->calibration_data[C0_VERSION] >> 5) & 0x7F;
     sensor->variant = version;  // TODO map to an enum here
 
-    char s[300];
-    sprintf(s, "MS5837 Version: %X", version);
-    print_out(s);
+    printf("MS5837 Version: %X", version);
 
     return sensor->calibration_loaded;
 }
@@ -354,4 +348,26 @@ uint8_t crc4( uint16_t n_prom[7] )
     crc_rem = ((crc_rem >> 12) & 0x000F); // final 4-bit remainder is CRC code
 
     return (crc_rem ^ 0x00);
+}
+
+
+ms5837_output_t ms5837_get_all_data( ms5837_t *sensor, float surface_pressure ) {
+	uint32_t wait_us = ms5837_start_conversion( sensor, SENSOR_PRESSURE, OSR_8192 );
+	osDelay(1 + wait_us / 1000);
+	ms5837_read_conversion( sensor );
+
+	// Request temperature
+	wait_us = ms5837_start_conversion( sensor, SENSOR_TEMPERATURE, OSR_8192 );
+	osDelay(1 + wait_us / 1000);
+	ms5837_read_conversion( sensor );
+
+	// Once pressure and temp are sampled, run the conversion function
+	ms5837_calculate( sensor );
+
+	// The values are now ready to use.
+	float pressure = ms5837_pressure_mbar( sensor );
+	float temperature = ms5837_temperature_celcius( sensor );
+	float depth = (pressure < surface_pressure) ? 0.0 : (100.0 * (pressure - surface_pressure) / 1000.0);
+
+	return (ms5837_output_t){ pressure, depth, temperature };
 }

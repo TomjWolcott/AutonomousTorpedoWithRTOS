@@ -50,8 +50,6 @@ typedef enum {
 
 
 typedef struct {
-    uint8_t i2c_address;
-
     uint8_t variant;
     bool calibration_loaded;
     uint16_t calibration_data[NUM_CALIBRATION_VARIABLES];
@@ -60,6 +58,12 @@ typedef struct {
     uint32_t samples[2];
     int32_t measurements[2];
 } ms5837_t;
+
+typedef struct {
+	float pressure_mbar;
+	float depth_m;
+	float temperature_C;
+} ms5837_output_t;
 
 // ---------------------------------------------------------------------
 void ms5837_reset( ms5837_t *sensor );
@@ -83,6 +87,8 @@ float ms5837_pressure_mbar( ms5837_t *sensor );
 float ms5837_pressure_atm( ms5837_t *sensor );
 
 float ms5837_pressure_pascal( ms5837_t *sensor );
+
+ms5837_output_t ms5837_get_all_data( ms5837_t *sensor, float surface_pressure );
 
 // ---------------------------------------------------------------------
 

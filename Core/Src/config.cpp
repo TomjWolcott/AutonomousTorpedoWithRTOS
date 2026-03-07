@@ -72,6 +72,8 @@ Config Config::from_msg_data(std::vector<uint8_t> &data) {
 	config.gyrBias[1] = floats[13];
 	config.gyrBias[2] = floats[14];
 
+	config.surfacePressure_mbar = 1013.0;
+
 	printf("from msg data: { magBias[0]: %.3f, ... , accBias[1]: %.3f, ... }", config.magBias[0], config.accBias[1]);
 
 	// TODO: PID in range floats[15] to floats[34]
@@ -101,6 +103,8 @@ void Config::into_msg_data(std::vector<uint8_t> &msg_data) {
 	floats[12] = gyrBias[0];
 	floats[13] = gyrBias[1];
 	floats[14] = gyrBias[2];
+
+	// TODO: Surface pressure
 
 	// TODO: PID in range floats[15] to floats[34], filled with zeros for now
 
@@ -160,4 +164,8 @@ vec<float,3> Config::calibrated_mag(int32_t mag[3]) {
 	};
 
 	return calibrated;
+}
+
+float Config::calibrated_surface_pressure() {
+	return surfacePressure_mbar;
 }

@@ -28,6 +28,8 @@ private:
 	float accScale[3];
 	float gyrBias[3];
 
+	float surfacePressure_mbar = 1013.0;
+
 	// PID: TODO
 
 	// Localization
@@ -55,6 +57,8 @@ public:
 	vec<float,3> calibrated_gyro(float gyro[3]);
 
 	vec<float,3> calibrated_mag(int32_t mag[3]);
+
+	float calibrated_surface_pressure();
 };
 
 

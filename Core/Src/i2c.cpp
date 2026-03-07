@@ -9,13 +9,17 @@
 
 
 HAL_StatusTypeDef DeviceI2C::write_registers(uint8_t reg, uint8_t *data, uint16_t size) {
-	return HAL_I2C_Mem_Write(
+//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
+	HAL_StatusTypeDef output = HAL_I2C_Mem_Write(
 	  port,
 	  address,
 	  reg, I2C_MEMADD_SIZE_8BIT,
 	  data, size,
 	  timeout
 	);
+//	xSemaphoreGive(i2c2_mutex);
+
+	return output;
 }
 
 HAL_StatusTypeDef DeviceI2C::write_register(uint8_t reg, uint8_t data) {
@@ -23,13 +27,17 @@ HAL_StatusTypeDef DeviceI2C::write_register(uint8_t reg, uint8_t data) {
 }
 
 HAL_StatusTypeDef DeviceI2C::read_registers(uint8_t reg, uint8_t *data, uint16_t size) {
-	return HAL_I2C_Mem_Read(
+//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
+	HAL_StatusTypeDef output = HAL_I2C_Mem_Read(
 	  port,
 	  address,
 	  reg, I2C_MEMADD_SIZE_8BIT,
 	  data, size,
 	  timeout
 	);
+//	xSemaphoreGive(i2c2_mutex);
+
+	return output;
 }
 
 uint8_t DeviceI2C::read_register(uint8_t reg) {

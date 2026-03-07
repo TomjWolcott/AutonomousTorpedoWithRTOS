@@ -11,6 +11,7 @@
 #include <string.h>
 #include "Message.hpp"
 #include "qvm_lite.hpp"
+#include "ms5837.h"
 
 static uint32_t stack_expense[3] = {0, 0, 0};
 
@@ -150,6 +151,7 @@ namespace SetupMode {
 		while (!this_task->is_task_dead) {
 			stack_expense[1] = 4*uxTaskGetStackHighWaterMark(NULL);
 			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+			printf("Hi!");
 			osDelay(500);
 		}
 
@@ -244,6 +246,7 @@ namespace SetupMode {
 
 	static int collectDataCount = 0;
 
+	// running at ~500Hz
 	void __NO_RETURN collectData(void *parameters) {
 		Task *this_task = (Task *)parameters;
 
@@ -323,15 +326,19 @@ namespace SetupMode {
 			AllMotorStats stats = motor_lock->get_all_motor_stats();
 			motor_lock.unlock();
 
+			auto outer_data_lock = outerDataMutex.get_lock();
+			ms5837_output_t ms5837_data = outer_data_lock->ms5837_output;
+			outer_data_lock.unlock();
+
 			auto data_lock = dataMutex.get_lock();
 			data_lock->localization_output = data_lock->localization.output();
 			Message msg = Message::sendData(
 					data_lock->adcData,
 					data_lock->ak09940a_output,
 					data_lock->icm42688_output,
+					ms5837_data,
 					other_data,
 					data_lock->localization_output,
-//					std::nullopt
 					stats
 			);
 			data_lock.unlock();
@@ -340,6 +347,35 @@ namespace SetupMode {
 
 			osDelay(50);
 			stack_expense[1] = 4 * uxTaskGetStackHighWaterMark(NULL);
+		}
+
+		osThreadExit();
+	}
+
+	#define OUTER_LOOP_REFRESH_RATE (60)
+
+	void __NO_RETURN depthAndSpeedControl(void *parameters){
+		Task *this_task = (Task *)parameters;
+		uint32_t last_time = HAL_GetTick();
+		uint32_t current_time;
+
+		while (!this_task->is_task_dead) {
+			auto config_lock = configMutex.get_lock();
+			float surface_pressure = config_lock->calibrated_surface_pressure();
+			config_lock.unlock();
+
+			auto outer_data_lock = outerDataMutex.get_lock();
+			ms5837_output_t ms5837_output = ms5837_get_all_data( &outer_data_lock->ms5837, surface_pressure );
+			outer_data_lock->ms5837_output = ms5837_output;
+			// filtering on the depth values
+//			outer_data_lock->ms5837_output.depth_m = 0.9 * outer_data_lock->ms5837_output.depth_m + 0.1 * ms5837_output.depth_m;
+//			outer_data_lock->ms5837_output.temperature_C = 0.9 * outer_data_lock->ms5837_output.temperature_C + 0.1 * ms5837_output.temperature_C;
+//			outer_data_lock->ms5837_output.pressure_mbar = 0.9 * outer_data_lock->ms5837_output.pressure_mbar + 0.1 * ms5837_output.pressure_mbar;
+			outer_data_lock.unlock();
+
+			current_time = HAL_GetTick();
+			osDelay((current_time - last_time >= OUTER_LOOP_REFRESH_RATE) ? 2 : OUTER_LOOP_REFRESH_RATE - (current_time - last_time));
+			last_time = current_time;
 		}
 
 		osThreadExit();
@@ -373,6 +409,12 @@ namespace SetupMode {
 //				stats.stats[3].voltage
 //			);
 
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+			std::optional<Message> msg_opt = Message::sendTaskInfo();
+
+			if (msg_opt.has_value()) {
+				msg_opt.value().send();
+			}
 
 			osDelay(500);
 		}

@@ -18,10 +18,18 @@ MutexLazy<Config> configMutex;
 MutexLazy<MotorControl> motorControlMutex;
 MutexLazy<PIDs> pidMutex;
 MutexLazy<ActionQueueState> actionQueueMutex;
+MutexLazy<OuterData> outerDataMutex;
 
 extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	ssd1306_Init();
 	initADC();
+
+	OuterData outer_data;
+	ms5837_reset( &outer_data.ms5837 );
+	osDelay(10);
+	ms5837_read_calibration_data( &outer_data.ms5837 );
+	outerDataMutex = MutexLazy<OuterData>(outer_data);
+	outerDataMutex.ensureInitialized();
 
 	configMutex = MutexLazy<Config>(Config::from_flash());
 	configMutex.ensureInitialized();

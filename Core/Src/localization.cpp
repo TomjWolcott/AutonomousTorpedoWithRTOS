@@ -102,8 +102,6 @@ void ComplementaryFilter::update(vec<float,3> a, vec<float,3> m, vec<float,3> gy
 	if (prev_update_instant.tick_ms == 0 && prev_update_instant.tick_us == 0) {
 		ori = ori_from_acc_mag;
 	} else {
-		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-
 		float dt_s = static_cast<float>(elapsed_us2(prev_update_instant, now)) / 1e6;
 
 		float gyro_mag = mag(gyr);

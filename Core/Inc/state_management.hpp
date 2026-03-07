@@ -39,7 +39,7 @@ struct Task {
 	osThreadId_t handle = nullptr;
 	bool is_task_dead = false;
 	bool needs_termination = false;
-
+	uint32_t free_stack_space = 0xffffffff;
 
 	Task(osThreadFunc_t task, osThreadAttr_t attributes, void* parameters) : task(task), attributes(attributes), parameters(parameters) {
 	}
@@ -66,6 +66,12 @@ struct Task {
 
     	handle = nullptr;
     	return true;
+	}
+
+	uint32_t measure_free_stack() {
+		free_stack_space = uxTaskGetStackHighWaterMark( NULL );
+
+		return free_stack_space;
 	}
 };
 
@@ -130,6 +136,7 @@ namespace SetupMode {
 	void calibrationRoutine(void *parameters);
 	void debugPrinter(void *parameters);
 	void handleActionQueue(void *parameters);
+	void depthAndSpeedControl(void *parameters);
 
 	namespace ConnectedMode {
 		static Task CALIBRATING_TASKS[] = {
@@ -142,6 +149,7 @@ namespace SetupMode {
 			Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(debugPrinter, {.name = "debugPrinter", .stack_size = 600, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(handleActionQueue, {.name = "handleAQ", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+//			Task(depthAndSpeedControl, {.name = "depthAndSpeed", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr)
 		};
 
 		// Events
@@ -247,6 +255,7 @@ extern MutexLazy<sml::sm<SystemModes::SM>> systemModesSM;
 #include "MotorControl.hpp"
 #include "control_loops.hpp"
 #include "Message.hpp"
+#include "ms5837.h"
 
 struct Data {
 	AdcData adcData;
@@ -256,6 +265,13 @@ struct Data {
 	ICM42688 icm42688_dev;
 	ComplementaryFilter localization;
 	LocalizationOutput localization_output;
+};
+
+struct OuterData {
+	ms5837_t ms5837;
+	ms5837_output_t ms5837_output;
+	uint32_t lastTimeSurfaced;
+	uint32_t lastTimeDived;
 };
 
 enum ControlLoopState {
@@ -303,6 +319,7 @@ extern MutexLazy<Config> configMutex;
 extern MutexLazy<MotorControl> motorControlMutex;
 extern MutexLazy<PIDs> pidMutex;
 extern MutexLazy<ActionQueueState> actionQueueMutex;
+extern MutexLazy<OuterData> outerDataMutex;
 
 
 #endif /* INC_STATE_MANAGEMENT_HPP_ */

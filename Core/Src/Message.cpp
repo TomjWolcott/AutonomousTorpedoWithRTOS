@@ -11,6 +11,7 @@
 #include "queue.h"
 #include "event_groups.h"
 #include <cstdio>
+#include <bit>
 #include <cstring>
 
 #define MSG_RX_DATA_LEN 300
@@ -150,6 +151,7 @@ Message Message::sendData(
 	std::optional<AdcData> adcData,
 	std::optional<AK09940A_Output> ak09940a_output,
 	std::optional<ICM42688_Data> icm42688_data,
+	std::optional<ms5837_output_t> ms5837_data,
 	std::optional<OtherData> other_data,
 	std::optional<LocalizationOutput> localization_output,
 	std::optional<AllMotorStats> motor_stats
@@ -177,6 +179,22 @@ Message Message::sendData(
 	if (icm42688_data.has_value()) {
 		icm42688_data.value().into_message(data);
 		data[6] |= SendDataAccGyro;
+	}
+
+	if (ms5837_data.has_value()) {
+		ms5837_output_t ms5837_output = ms5837_data.value();
+		float floats[3] = {ms5837_output.depth_m, ms5837_output.temperature_C, ms5837_output.pressure_mbar };
+
+		for (int i = 0; i < 3; i++) {
+			uint32_t uint32_data = std::bit_cast<uint32_t>(floats[i]);
+
+			data.push_back((uint8_t)(uint32_data >> 24));
+			data.push_back((uint8_t)((uint32_data >> 16) & 0xFF));
+			data.push_back((uint8_t)((uint32_data >> 8) & 0xFF));
+			data.push_back((uint8_t)(uint32_data & 0xFF));
+		}
+
+		data[6] |= SendDataPressureDepthTemp;
 	}
 
 	if (localization_output.has_value()) {
@@ -262,6 +280,58 @@ Message Message::echo(std::vector<uint8_t> v) {
 	data[4] = data.size();
 
 	return Message(data);
+}
+
+std::optional<Message> Message::sendTaskInfo() {
+	std::vector<uint8_t> data = {
+		MESSAGE_HEADER[0],
+		MESSAGE_HEADER[1],
+		MESSAGE_HEADER[2],
+		MESSAGE_HEADER[3],
+		0, // Will be overwritten later
+		MESSAGE_TYPE_TASK_INFO
+	};
+
+    UBaseType_t taskCount = uxTaskGetNumberOfTasks();
+    TaskStatus_t *taskStatusArray = (TaskStatus_t *)pvPortMalloc(taskCount * sizeof(TaskStatus_t));
+
+    if (taskStatusArray == NULL) {
+    	printf("Failure to alloc memory in Message::sendTaskInfo\n");
+    	return std::nullopt;
+    }
+
+	uxTaskGetSystemState(taskStatusArray, taskCount, NULL);
+    uint32_t totalRunTime;
+    taskCount = uxTaskGetSystemState(taskStatusArray, taskCount, &totalRunTime);
+    UBaseType_t taskDataLenIndex = 6;
+
+    for (UBaseType_t i = 0; i < taskCount; i++) {
+        TaskStatus_t *t = &taskStatusArray[i];
+        size_t name_len = (t->pcTaskName == NULL) ? 0 : strnlen(t->pcTaskName, 16);
+        data.push_back(0); // will be overwritten later
+        data.push_back(name_len);
+
+        for (UBaseType_t j = 0; j < name_len; j++) {
+        	data.push_back(t->pcTaskName[j]);
+        }
+
+        data.push_back((uint8_t)(t->usStackHighWaterMark >> 8));
+        data.push_back((uint8_t)(t->usStackHighWaterMark & 0xFF));
+
+        data.push_back((uint8_t)(t->xTaskNumber >> 24));
+        data.push_back((uint8_t)((t->xTaskNumber >> 16) & 0xFF));
+        data.push_back((uint8_t)((t->xTaskNumber >> 8) & 0xFF));
+        data.push_back((uint8_t)(t->xTaskNumber & 0xFF));
+
+        data.push_back((uint8_t)(t->eCurrentState));
+
+        data[taskDataLenIndex] = data.size() - taskDataLenIndex;
+        taskDataLenIndex = data.size();
+    }
+
+    vPortFree(taskStatusArray);
+
+    return std::optional{Message(data)};
 }
 
 bool Message::isValid() {

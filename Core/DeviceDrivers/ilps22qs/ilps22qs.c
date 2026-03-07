@@ -8,6 +8,7 @@
 #include "ilps22qs.h"
 
 static int write_registers(uint8_t reg, uint8_t *pdata, int size) {
+//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
 	int status = HAL_I2C_Mem_Write(
 	  &ILPS22QS_I2C_PORT,
 	  ILPS22QS_I2C_ADDRESS,
@@ -15,6 +16,7 @@ static int write_registers(uint8_t reg, uint8_t *pdata, int size) {
 	  pdata, size,
 	  HAL_MAX_DELAY
 	);
+//    xSemaphoreGive(i2c2_mutex);
 
 	if (status != HAL_OK) {
 		return -1;  // Error
@@ -28,6 +30,7 @@ static int write_register(uint8_t reg, uint8_t data) {
 }
 
 static int read_registers(uint8_t reg, uint8_t *pdata, int size) {
+//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
 	int status = HAL_I2C_Mem_Read(
 	  &ILPS22QS_I2C_PORT,
 	  ILPS22QS_I2C_ADDRESS,
@@ -35,6 +38,7 @@ static int read_registers(uint8_t reg, uint8_t *pdata, int size) {
 	  pdata, size,
 	  HAL_MAX_DELAY
 	);
+//    xSemaphoreGive(i2c2_mutex);
 
 	if (status != HAL_OK) {
 		return -1;  // Error
