@@ -10,13 +10,7 @@
 
 #include "main.h"
 #include <stdbool.h>
-#include "i2c.hpp"
 #include <vector>
-
-extern DeviceI2C AK09940A_I2C;
-
-#define AK09940A_I2C_PORT hi2c2
-#define AK09940A_I2C_ADDRESS (0x0F << 1)
 
 // https://www.mouser.cn/datasheet/2/1431/ak09940a_en_datasheet_myakm-3244294.pdf#page=13
 typedef enum {

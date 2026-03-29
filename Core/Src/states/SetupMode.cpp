@@ -151,7 +151,7 @@ namespace SetupMode {
 		while (!this_task->is_task_dead) {
 			stack_expense[1] = 4*uxTaskGetStackHighWaterMark(NULL);
 			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-			printf("Hi!\n");
+			printf("Hi---!\n");
 			osDelay(500);
 		}
 
@@ -317,7 +317,6 @@ namespace SetupMode {
 		uint32_t last_t = HAL_GetTick();
 
 		while (!this_task->is_task_dead) {
-			printf("sendData\n");
 			uint16_t rate_hz = 1000 * collectDataCount / (HAL_GetTick() - last_t);
 			collectDataCount = 0;
 
@@ -328,9 +327,9 @@ namespace SetupMode {
 			AllMotorStats stats = motor_lock->get_all_motor_stats();
 			motor_lock.unlock();
 
-//			auto outer_data_lock = outerDataMutex.get_lock();
-//			ms5837_output_t ms5837_data = outer_data_lock->ms5837_output;
-//			outer_data_lock.unlock();
+			auto outer_data_lock = outerDataMutex.get_lock();
+			ms5837_output_t ms5837_data = outer_data_lock->ms5837_output;
+			outer_data_lock.unlock();
 
 			auto data_lock = dataMutex.get_lock();
 			data_lock->localization_output = data_lock->localization.output();
@@ -338,8 +337,7 @@ namespace SetupMode {
 					data_lock->adcData,
 					data_lock->ak09940a_output,
 					data_lock->icm42688_output,
-//					ms5837_data,
-					(ms5837_output_t){5.0,6.0, 7.0},
+					ms5837_data,
 					other_data,
 					data_lock->localization_output,
 					stats
@@ -355,20 +353,27 @@ namespace SetupMode {
 		osThreadExit();
 	}
 
-	#define OUTER_LOOP_REFRESH_RATE (60)
+	#define OUTER_LOOP_REFRESH_RATE (5)
+	#define OUTER_LOOP_DELAY_MAX (1000 / OUTER_LOOP_REFRESH_RATE)
 
 	void __NO_RETURN depthAndSpeedControl(void *parameters){
 		Task *this_task = (Task *)parameters;
 		uint32_t last_time = HAL_GetTick();
 		uint32_t current_time;
+		uint32_t delay;
 
 		while (!this_task->is_task_dead) {
 			auto config_lock = configMutex.get_lock();
 			float surface_pressure = config_lock->calibrated_surface_pressure();
 			config_lock.unlock();
 
+			auto ms5837_lock = ms5837Mutex.get_lock();
+			ms5837_output_t ms5837_output = ms5837_get_all_data( &(*ms5837_lock), surface_pressure );
+//			ms5837_output_t ms5837_output = (ms5837_output_t){1.0, 4.0, 2.13};
+			ms5837_lock.unlock();
+////
+//
 			auto outer_data_lock = outerDataMutex.get_lock();
-			ms5837_output_t ms5837_output = ms5837_get_all_data( &outer_data_lock->ms5837, surface_pressure );
 			outer_data_lock->ms5837_output = ms5837_output;
 			// filtering on the depth values
 //			outer_data_lock->ms5837_output.depth_m = 0.9 * outer_data_lock->ms5837_output.depth_m + 0.1 * ms5837_output.depth_m;
@@ -377,8 +382,10 @@ namespace SetupMode {
 			outer_data_lock.unlock();
 
 			current_time = HAL_GetTick();
-			osDelay((current_time - last_time >= OUTER_LOOP_REFRESH_RATE) ? 2 : OUTER_LOOP_REFRESH_RATE - (current_time - last_time));
-			last_time = current_time;
+			delay = ((current_time - last_time) < OUTER_LOOP_DELAY_MAX) ? (OUTER_LOOP_DELAY_MAX - (current_time - last_time)) : 2;
+			printf("delay: %d\n", delay);
+			osDelay(delay);
+			last_time = HAL_GetTick();
 		}
 
 		osThreadExit();
@@ -418,7 +425,6 @@ namespace SetupMode {
 //			if (msg_opt.has_value()) {
 //				msg_opt.value().send();
 //			}
-			printf("debugPrinter\n");
 			osDelay(500);
 		}
 

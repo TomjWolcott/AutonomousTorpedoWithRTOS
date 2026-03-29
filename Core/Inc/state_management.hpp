@@ -144,12 +144,12 @@ namespace SetupMode {
 		};
 
 		static Task SENDING_DATA_TASKS[] = {
-			Task(collectData, {.name = "collectData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+			Task(collectData, {.name = "collectData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal }, nullptr),
 			Task(sendData, {.name = "sendData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(debugPrinter, {.name = "debugPrinter", .stack_size = 600, .priority = (osPriority_t) osPriorityNormal}, nullptr),
 			Task(handleActionQueue, {.name = "handleAQ", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-//			Task(depthAndSpeedControl, {.name = "depthAndSpeed", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr)
+			Task(depthAndSpeedControl, {.name = "depthAndSpeed", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr)
 		};
 
 		// Events
@@ -166,8 +166,8 @@ namespace SetupMode {
 			auto operator()() const {
 				return make_transition_table(
 					state<Calibrating> <= *state<SendingData> + event<CalibrationStart>,
-						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<5, SENDING_DATA_TASKS>),
-						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<5, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<6, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<6, SENDING_DATA_TASKS>),
 
 					state<SendingData> <= state<Calibrating> + event<CalibrationStop>,
 						                  state<Calibrating> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<1, CALIBRATING_TASKS>),
@@ -268,7 +268,6 @@ struct Data {
 };
 
 struct OuterData {
-	ms5837_t ms5837;
 	ms5837_output_t ms5837_output;
 	uint32_t lastTimeSurfaced;
 	uint32_t lastTimeDived;
@@ -319,6 +318,7 @@ extern MutexLazy<Config> configMutex;
 extern MutexLazy<MotorControl> motorControlMutex;
 extern MutexLazy<PIDs> pidMutex;
 extern MutexLazy<ActionQueueState> actionQueueMutex;
+extern MutexLazy<ms5837_t> ms5837Mutex;
 extern MutexLazy<OuterData> outerDataMutex;
 
 
