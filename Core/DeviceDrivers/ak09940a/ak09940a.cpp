@@ -8,11 +8,8 @@
 #include "ak09940a.hpp"
 #include "registers.hpp"
 #include <stdio.h>
-extern "C" {
-#include "freertos_comm.h"
-}
 
-static i2cSettings i2c = ((i2cSettings){ &hi2c2, (0x0F << 1) });
+DeviceI2C AK09940A_I2C = DeviceI2C(&hi2c2, (0x0F << 1));
 
 /// Needs 12 bytes
 void AK09940A_Output::into_message(std::vector<uint8_t> &data) {
@@ -28,7 +25,7 @@ void AK09940A_Output::into_message(std::vector<uint8_t> &data) {
 #define AK09940RegControl3 0x0;
 
 int AK09940A_Dev::set_power_down() {
-	uint8_t data = i2c_read_register(&i2c, AK09940A_REG_CNTL3);
+	uint8_t data = AK09940A_I2C.read_register(AK09940A_REG_CNTL3);
 
 //	char s[300];
 //	sprintf(s, "cntl3: %X", data);
@@ -36,13 +33,13 @@ int AK09940A_Dev::set_power_down() {
 
 	data = data & 0xE0;
 
-	return i2c_write_register(&i2c, AK09940A_REG_CNTL3, data);
+	return AK09940A_I2C.write_register(AK09940A_REG_CNTL3, data);
 }
 
 int AK09940A_Dev::update_offset_registers() {
 	uint8_t offset_data[6];
 
-	int status = i2c_read_registers(&i2c, AK09940A_REG_SXL, offset_data, 6);
+	int status = AK09940A_I2C.read_registers(AK09940A_REG_SXL, offset_data, 6);
 
 	return status;
 }
@@ -57,7 +54,7 @@ void AK09940A_Dev::init(AK09940A_OperationMode operation_mode, AK09940A_DriveMod
 
 	uint8_t data[2];
 
-	i2c_read_registers(&i2c, AK09940A_REG_WIA1, data, 2);
+	AK09940A_I2C.read_registers(AK09940A_REG_WIA1, data, 2);
 
 //	printf("ak09940a wia: [%d, %d]", data[0], data[1]);
 
@@ -87,7 +84,7 @@ void AK09940A_Dev::set_control_registers() {
 //	sprintf(s, "cntl3: %X", data2);
 //	print_out(s);
 
-	i2c_write_registers(&i2c, AK09940A_REG_CNTL1, data, 4);
+	AK09940A_I2C.write_registers(AK09940A_REG_CNTL1, data, 4);
 }
 
 int AK09940A_Dev::get_avg_measurement(int num_avgs, AK09940A_Output *output) {
@@ -159,7 +156,7 @@ int AK09940A_Dev::read_measurement_raw(AK09940A_Output *output, uint32_t timeout
 	uint32_t time = HAL_GetTick();
 
 	while (!data_ready && HAL_GetTick() - time < timeout_ms) {
-		i2c_read_registers(&i2c, AK09940A_REG_ST, &data_ready, 1);
+		AK09940A_I2C.read_registers(AK09940A_REG_ST, &data_ready, 1);
 
 		data_ready &= 1;
 	}
@@ -171,13 +168,13 @@ int AK09940A_Dev::read_measurement_raw(AK09940A_Output *output, uint32_t timeout
 
 	uint8_t data[10];
 
-	int status_meas = i2c_read_registers(&i2c, AK09940A_REG_HXL, data, 10);
+	int status_meas = AK09940A_I2C.read_registers(AK09940A_REG_HXL, data, 10);
 
 	if (status_meas)
 		return 6;
 
 	uint8_t st2_data;
-	int status_st2 = i2c_read_registers(&i2c, AK09940A_REG_ST2, &st2_data, 1);
+	int status_st2 = AK09940A_I2C.read_registers(AK09940A_REG_ST2, &st2_data, 1);
 
 	if (status_st2)
 		return 7;

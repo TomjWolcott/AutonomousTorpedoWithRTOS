@@ -77,6 +77,8 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 extern SemaphoreHandle_t ssd1306_mutex;
+extern SemaphoreHandle_t i2c1_mutex;
+extern SemaphoreHandle_t i2c2_mutex;
 
 typedef struct {
 	uint32_t tick_ms;

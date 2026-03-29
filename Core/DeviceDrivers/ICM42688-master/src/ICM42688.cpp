@@ -2,13 +2,10 @@
 #include "registers.hpp"
 #include <cstring>
 #include <cmath>
-extern "C" {
-#include "freertos_comm.h"
-}
 
 using namespace ICM42688reg;
 
-static i2cSettings i2c = ((i2cSettings){ &hi2c2, (0x69 << 1) });
+DeviceI2C ICM42688P_I2C = DeviceI2C(&hi2c2, (0x69 << 1));
 
 /// Needs 12 bytes
 
@@ -41,7 +38,7 @@ int ICM42688::begin() {
 	}
 
 	// turn on accel and gyro in Low Noise (LN) Mode
-	if (i2c_write_register(&i2c, UB0_REG_PWR_MGMT0, 0x0F) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_PWR_MGMT0, 0x0F) != HAL_OK) {
 		return -4;
 	}
 
@@ -151,14 +148,14 @@ int ICM42688::setAccelFS(AccelFS fssel) {
 
 	// read current register value
 	uint8_t reg;
-	if (i2c_read_registers(&i2c, UB0_REG_ACCEL_CONFIG0, &reg, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_ACCEL_CONFIG0, &reg, 1) != HAL_OK) {
 		return -1;
 	}
 
 	// only change FS_SEL in reg
 	reg = (fssel << 5) | (reg & 0x1F);
 
-	if (i2c_write_register(&i2c, UB0_REG_ACCEL_CONFIG0, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_ACCEL_CONFIG0, reg) != HAL_OK) {
 		return -2;
 	}
 
@@ -173,7 +170,7 @@ int ICM42688::getAccelFS() {
 	setBank(0);
 	// read current register value
 	uint8_t reg;
-	if (i2c_read_registers(&i2c, UB0_REG_ACCEL_CONFIG0, &reg, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_ACCEL_CONFIG0, &reg, 1) != HAL_OK) {
 		return -1;
 	}
 	return (reg & 0xE0) >> 5;
@@ -185,14 +182,14 @@ int ICM42688::setGyroFS(GyroFS fssel) {
 
 	// read current register value
 	uint8_t reg;
-	if (i2c_read_registers(&i2c, UB0_REG_GYRO_CONFIG0, &reg, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_GYRO_CONFIG0, &reg, 1) != HAL_OK) {
 		return -1;
 	}
 
 	// only change FS_SEL in reg
 	reg = (fssel << 5) | (reg & 0x1F);
 
-	if (i2c_write_register(&i2c, UB0_REG_GYRO_CONFIG0, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_GYRO_CONFIG0, reg) != HAL_OK) {
 		return -2;
 	}
 
@@ -207,14 +204,14 @@ int ICM42688::setAccelODR(ODR odr) {
 
 	// read current register value
 	uint8_t reg;
-	if (i2c_read_registers(&i2c, UB0_REG_ACCEL_CONFIG0, &reg, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_ACCEL_CONFIG0, &reg, 1) != HAL_OK) {
 		return -1;
 	}
 
 	// only change ODR in reg
 	reg = odr | (reg & 0xF0);
 
-	if (i2c_write_register(&i2c, UB0_REG_ACCEL_CONFIG0, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_ACCEL_CONFIG0, reg) != HAL_OK) {
 		return -2;
 	}
 
@@ -226,14 +223,14 @@ int ICM42688::setGyroODR(ODR odr) {
 
 	// read current register value
 	uint8_t reg;
-	if (i2c_read_registers(&i2c, UB0_REG_GYRO_CONFIG0, &reg, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_GYRO_CONFIG0, &reg, 1) != HAL_OK) {
 		return -1;
 	}
 
 	// only change ODR in reg
 	reg = odr | (reg & 0xF0);
 
-	if (i2c_write_register(&i2c, UB0_REG_GYRO_CONFIG0, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_GYRO_CONFIG0, reg) != HAL_OK) {
 		return -2;
 	}
 
@@ -246,11 +243,11 @@ int ICM42688::setFilters(bool gyroFilters, bool accFilters) {
 	}
 
 	if (gyroFilters == true) {
-		if (i2c_write_register(&i2c, UB1_REG_GYRO_CONFIG_STATIC2, GYRO_NF_ENABLE | GYRO_AAF_ENABLE) != HAL_OK) {
+		if (ICM42688P_I2C.write_register(UB1_REG_GYRO_CONFIG_STATIC2, GYRO_NF_ENABLE | GYRO_AAF_ENABLE) != HAL_OK) {
 			return -2;
 		}
 	} else {
-		if (i2c_write_register(&i2c, UB1_REG_GYRO_CONFIG_STATIC2, GYRO_NF_DISABLE | GYRO_AAF_DISABLE) != HAL_OK) {
+		if (ICM42688P_I2C.write_register(UB1_REG_GYRO_CONFIG_STATIC2, GYRO_NF_DISABLE | GYRO_AAF_DISABLE) != HAL_OK) {
 			return -3;
 		}
 	}
@@ -260,11 +257,11 @@ int ICM42688::setFilters(bool gyroFilters, bool accFilters) {
 	}
 
 	if (accFilters == true) {
-		if (i2c_write_register(&i2c, UB2_REG_ACCEL_CONFIG_STATIC2, ACCEL_AAF_ENABLE) != HAL_OK) {
+		if (ICM42688P_I2C.write_register(UB2_REG_ACCEL_CONFIG_STATIC2, ACCEL_AAF_ENABLE) != HAL_OK) {
 			return -5;
 		}
 	} else {
-		if (i2c_write_register(&i2c, UB2_REG_ACCEL_CONFIG_STATIC2, ACCEL_AAF_DISABLE) != HAL_OK) {
+		if (ICM42688P_I2C.write_register(UB2_REG_ACCEL_CONFIG_STATIC2, ACCEL_AAF_DISABLE) != HAL_OK) {
 			return -6;
 		}
 	}
@@ -276,22 +273,22 @@ int ICM42688::setFilters(bool gyroFilters, bool accFilters) {
 
 int ICM42688::enableDataReadyInterrupt() {
 	// push-pull, pulsed, active HIGH interrupts
-	if (i2c_write_register(&i2c, UB0_REG_INT_CONFIG, 0x18 | 0x03) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_INT_CONFIG, 0x18 | 0x03) != HAL_OK) {
 		return -1;
 	}
 
 	// need to clear bit 4 to allow proper INT1 and INT2 operation
 	uint8_t reg;
-	if (i2c_read_registers(&i2c, UB0_REG_INT_CONFIG1, &reg, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_INT_CONFIG1, &reg, 1) != HAL_OK) {
 		return -2;
 	}
 	reg &= ~0x10;
-	if (i2c_write_register(&i2c, UB0_REG_INT_CONFIG1, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_INT_CONFIG1, reg) != HAL_OK) {
 		return -3;
 	}
 
 	// route UI data ready interrupt to INT1
-	if (i2c_write_register(&i2c, UB0_REG_INT_SOURCE0, 0x18) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_INT_SOURCE0, 0x18) != HAL_OK) {
 		return -4;
 	}
 
@@ -301,16 +298,16 @@ int ICM42688::enableDataReadyInterrupt() {
 int ICM42688::disableDataReadyInterrupt() {
 	// set pin 4 to return to reset value
 	uint8_t reg;
-	if (i2c_read_registers(&i2c, UB0_REG_INT_CONFIG1, &reg, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_INT_CONFIG1, &reg, 1) != HAL_OK) {
 		return -1;
 	}
 	reg |= 0x10;
-	if (i2c_write_register(&i2c, UB0_REG_INT_CONFIG1, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_INT_CONFIG1, reg) != HAL_OK) {
 		return -2;
 	}
 
 	// return reg to reset value
-	if (i2c_write_register(&i2c, UB0_REG_INT_SOURCE0, 0x10) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB0_REG_INT_SOURCE0, 0x10) != HAL_OK) {
 		return -3;
 	}
 
@@ -339,7 +336,7 @@ int ICM42688::getAGT() {  // modified to use getRawAGT()
 /* reads the most current data from ICM42688 and stores in buffer */
 int ICM42688::getRawAGT() {  // Added to return raw data only
 	// grab the data from the ICM42688
-	if (i2c_read_registers(&i2c, UB0_REG_TEMP_DATA1, _buffer, 14) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_TEMP_DATA1, _buffer, 14) != HAL_OK) {
 		return -1;
 	}
 
@@ -375,7 +372,7 @@ int ICM42688_FIFO::enableFifo(bool accel, bool gyro, bool temp) {
 	_enFifoHeader  = accel || gyro;  // if neither sensor requested, FIFO will not send any more packets
 	_fifoFrameSize = _enFifoHeader * 1 + _enFifoAccel * 6 + _enFifoGyro * 6 + _enFifoTemp + _enFifoTimestamp * 2;
 
-	if (i2c_write_register(&i2c, FIFO_EN, (_enFifoAccel * FIFO_ACCEL) | (_enFifoGyro * FIFO_GYRO) | (_enFifoTemp * FIFO_TEMP_EN))
+	if (ICM42688P_I2C.write_register(FIFO_EN, (_enFifoAccel * FIFO_ACCEL) | (_enFifoGyro * FIFO_GYRO) | (_enFifoTemp * FIFO_TEMP_EN))
 	    != HAL_OK) {
 		return -2;
 	}
@@ -384,7 +381,7 @@ int ICM42688_FIFO::enableFifo(bool accel, bool gyro, bool temp) {
 
 /* Start streaming, required to read after enableFifo() under most sensor configurations */
 int ICM42688_FIFO::streamToFifo() {
-	if (i2c_write_register(&i2c, ICM42688reg::UB0_REG_FIFO_CONFIG, 1 << 6) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(ICM42688reg::UB0_REG_FIFO_CONFIG, 1 << 6) != HAL_OK) {
 		return -2;
 	}
 	return 1;
@@ -394,7 +391,7 @@ int ICM42688_FIFO::streamToFifo() {
   High-resolution mode not yet supported */
 int ICM42688_FIFO::readFifo() {
 	// get the fifo size
-	i2c_read_registers(&i2c, UB0_REG_FIFO_COUNTH, _buffer, 2);
+	ICM42688P_I2C.read_registers(UB0_REG_FIFO_COUNTH, _buffer, 2);
 	_fifoSize = (((uint16_t)(_buffer[0] & 0x0F)) << 8) + ((uint16_t)_buffer[1]);
 
 	// precalculate packet structure as per-packet recalculation based on headers isn't reliable
@@ -406,7 +403,7 @@ int ICM42688_FIFO::readFifo() {
 	// read and parse the buffer
 	for (size_t i = 0; i < _fifoSize / _fifoFrameSize; i++) {
 		// grab the data from the ICM42688
-		if (i2c_read_registers(&i2c, UB0_REG_FIFO_DATA, _buffer, _fifoFrameSize) != HAL_OK) {
+		if (ICM42688P_I2C.read_registers(UB0_REG_FIFO_DATA, _buffer, _fifoFrameSize) != HAL_OK) {
 			return -1;
 		}
 		if (_enFifoAccel) {
@@ -662,13 +659,13 @@ int ICM42688::setBank(uint8_t bank) {
 
 	_bank = bank;
 
-	return i2c_write_register(&i2c, REG_BANK_SEL, bank);
+	return ICM42688P_I2C.write_register(REG_BANK_SEL, bank);
 }
 
 void ICM42688::reset() {
 	setBank(0);
 
-	i2c_write_register(&i2c, UB0_REG_DEVICE_CONFIG, 0x01);
+	ICM42688P_I2C.write_register(UB0_REG_DEVICE_CONFIG, 0x01);
 
 	// wait for ICM42688 to come back up
 	osDelay(1);
@@ -679,7 +676,7 @@ uint8_t ICM42688::whoAmI() {
 	setBank(0);
 
 	// read the WHO AM I register
-	if (i2c_read_registers(&i2c, UB0_REG_WHO_AM_I, _buffer, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_WHO_AM_I, _buffer, 1) != HAL_OK) {
 		return -1;
 	}
 	// return the register value
@@ -699,31 +696,31 @@ int ICM42688::computeOffsets() {
 
 	// reset the Offset_user
 	setBank(4);
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER5, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER5, 0) != HAL_OK) {
 		return -2;  // lower Ax byte
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER6, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER6, 0) != HAL_OK) {
 		return -2;  // lower Ay byte
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER8, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER8, 0) != HAL_OK) {
 		return -2;  // lower Az byte
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER2, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER2, 0) != HAL_OK) {
 		return -2;  // lower Gy byte
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER3, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER3, 0) != HAL_OK) {
 		return -2;  // lower Gz byte
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER0, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER0, 0) != HAL_OK) {
 		return -2;  // lower Gx byte
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER4, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER4, 0) != HAL_OK) {
 		return -2;  // upper Ax and Gz bytes
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER7, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER7, 0) != HAL_OK) {
 		return -2;  // upper Az and Ay bytes
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER1, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER1, 0) != HAL_OK) {
 		return -2;  // upper Gy and Gx bytes
 	}
 	setBank(0);
@@ -797,67 +794,67 @@ int ICM42688::setAllOffsets() {
 	uint8_t reg;
 
 	// clear all offsets:
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER0, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER0, 0) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER1, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER1, 0) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER2, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER2, 0) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER3, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER3, 0) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER4, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER4, 0) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER5, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER5, 0) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER6, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER6, 0) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER7, 0) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER7, 0) != HAL_OK) {
 		return -2;
 	}
 
 	reg = _AccOffset[0] & 0x00FF;  // lower Ax byte
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER5, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER5, reg) != HAL_OK) {
 		return -2;
 	}
 	reg = _AccOffset[1] & 0x00FF;  // lower Ay byte
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER6, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER6, reg) != HAL_OK) {
 		return -2;
 	}
 	reg = _AccOffset[2] & 0x00FF;  // lower Az byte
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER8, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER8, reg) != HAL_OK) {
 		return -2;
 	}
 
 	reg = _GyrOffset[1] & 0x00FF;  // lower Gy byte
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER2, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER2, reg) != HAL_OK) {
 		return -2;
 	}
 	reg = _GyrOffset[2] & 0x00FF;  // lower Gz byte
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER3, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER3, reg) != HAL_OK) {
 		return -2;
 	}
 	reg = _GyrOffset[0] & 0x00FF;  // lower Gx byte
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER0, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER0, reg) != HAL_OK) {
 		return -2;
 	}
 
 	reg = (_AccOffset[0] & 0x0F00) >> 4 | (_GyrOffset[2] & 0x0F00) >> 8;  // upper Ax and Gz bytes
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER4, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER4, reg) != HAL_OK) {
 		return -2;
 	}
 	reg = (_AccOffset[2] & 0x0F00) >> 4 | (_AccOffset[1] & 0x0F00) >> 8;  // upper Az and Ay bytes
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER7, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER7, reg) != HAL_OK) {
 		return -2;
 	}
 	reg = (_GyrOffset[1] & 0x0F00) >> 4 | (_GyrOffset[0] & 0x0F00) >> 8;  // upper Gy and Gx bytes
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER1, reg) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER1, reg) != HAL_OK) {
 		return -2;
 	}
 	setBank(0);
@@ -869,14 +866,14 @@ int ICM42688::setAccXOffset(int16_t accXoffset) {
 	setBank(4);
 	uint8_t reg1 = (accXoffset & 0x00FF);
 	uint8_t reg2;
-	if (i2c_read_registers(&i2c, UB4_REG_OFFSET_USER4, &reg2, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB4_REG_OFFSET_USER4, &reg2, 1) != HAL_OK) {
 		return -1;
 	}
 	reg2 = (reg2 & 0x0F) | ((accXoffset & 0x0F00) >> 4);
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER5, reg1) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER5, reg1) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER4, reg2) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER4, reg2) != HAL_OK) {
 		return -2;
 	}
 	setBank(0);
@@ -887,14 +884,14 @@ int ICM42688::setAccYOffset(int16_t accYoffset) {
 	setBank(4);
 	uint8_t reg1 = (accYoffset & 0x00FF);
 	uint8_t reg2;
-	if (i2c_read_registers(&i2c, UB4_REG_OFFSET_USER7, &reg2, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB4_REG_OFFSET_USER7, &reg2, 1) != HAL_OK) {
 		return -1;
 	}
 	reg2 = (reg2 & 0xF0) | ((accYoffset & 0x0F00) >> 8);
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER6, reg1) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER6, reg1) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER7, reg2) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER7, reg2) != HAL_OK) {
 		return -2;
 	}
 	setBank(0);
@@ -905,14 +902,14 @@ int ICM42688::setAccZOffset(int16_t accZoffset) {
 	setBank(4);
 	uint8_t reg1 = accZoffset & 0x00FF;
 	uint8_t reg2;
-	if (i2c_read_registers(&i2c, UB4_REG_OFFSET_USER7, &reg2, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB4_REG_OFFSET_USER7, &reg2, 1) != HAL_OK) {
 		return -1;
 	}
 	reg2 = (reg2 & 0x0F) | ((accZoffset & 0x0F00) >> 4);
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER8, reg1) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER8, reg1) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER7, reg2) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER7, reg2) != HAL_OK) {
 		return -2;
 	}
 	setBank(0);
@@ -923,14 +920,14 @@ int ICM42688::setGyrXOffset(int16_t gyrXoffset) {
 	setBank(4);
 	uint8_t reg1 = gyrXoffset & 0x00FF;
 	uint8_t reg2;
-	if (i2c_read_registers(&i2c, UB4_REG_OFFSET_USER1, &reg2, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB4_REG_OFFSET_USER1, &reg2, 1) != HAL_OK) {
 		return -1;
 	}
 	reg2 = (reg2 & 0xF0) | ((gyrXoffset & 0x0F00) >> 8);
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER0, reg1) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER0, reg1) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER1, reg2) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER1, reg2) != HAL_OK) {
 		return -2;
 	}
 	setBank(0);
@@ -941,15 +938,15 @@ int ICM42688::setGyrYOffset(int16_t gyrYoffset) {
 	setBank(4);
 	uint8_t reg1 = gyrYoffset & 0x00FF;
 	uint8_t reg2;
-	if (i2c_read_registers(&i2c, UB4_REG_OFFSET_USER1, &reg2, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB4_REG_OFFSET_USER1, &reg2, 1) != HAL_OK) {
 		return -1;
 	}
 	reg2 = (reg2 & 0x0F) | ((gyrYoffset & 0x0F00) >> 4);
 	reg2 = (gyrYoffset & 0x0F00) >> 4 | (reg2 & 0x0F00) >> 4;
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER2, reg1) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER2, reg1) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER1, reg2) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER1, reg2) != HAL_OK) {
 		return -2;
 	}
 	setBank(0);
@@ -960,14 +957,14 @@ int ICM42688::setGyrZOffset(int16_t gyrZoffset) {
 	setBank(4);
 	uint8_t reg1 = gyrZoffset & 0x00FF;
 	uint8_t reg2;
-	if (i2c_read_registers(&i2c, UB4_REG_OFFSET_USER4, &reg2, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB4_REG_OFFSET_USER4, &reg2, 1) != HAL_OK) {
 		return -1;
 	}
 	reg2 = (reg2 & 0xF0) | ((gyrZoffset & 0x0F00) >> 8);
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER3, reg1) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER3, reg1) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB4_REG_OFFSET_USER4, reg2) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB4_REG_OFFSET_USER4, reg2) != HAL_OK) {
 		return -2;
 	}
 	setBank(0);
@@ -984,7 +981,7 @@ int ICM42688::setGyroNotchFilter(float gyroNFfreq_x, float gyroNFfreq_y, float g
 	setBank(3);
 	// get clock div
 	uint8_t reg;
-	if (i2c_read_registers(&i2c, UB0_REG_GYRO_CONFIG0, &reg, 1) != HAL_OK) {
+	if (ICM42688P_I2C.read_registers(UB0_REG_GYRO_CONFIG0, &reg, 1) != HAL_OK) {
 		return -1;
 	}
 	uint8_t clkdiv = reg & 0x3F;
@@ -1016,19 +1013,19 @@ int ICM42688::setGyroNotchFilter(float gyroNFfreq_x, float gyroNFfreq_y, float g
 		}
 	}
 	// write to the Registers
-	if (i2c_write_register(&i2c, UB1_REG_GYRO_CONFIG_STATIC6, gyro_nf_coswz_low[0]) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB1_REG_GYRO_CONFIG_STATIC6, gyro_nf_coswz_low[0]) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB1_REG_GYRO_CONFIG_STATIC7, gyro_nf_coswz_low[1]) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB1_REG_GYRO_CONFIG_STATIC7, gyro_nf_coswz_low[1]) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB1_REG_GYRO_CONFIG_STATIC8, gyro_nf_coswz_low[2]) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB1_REG_GYRO_CONFIG_STATIC8, gyro_nf_coswz_low[2]) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB1_REG_GYRO_CONFIG_STATIC9, buff) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB1_REG_GYRO_CONFIG_STATIC9, buff) != HAL_OK) {
 		return -2;
 	}
-	if (i2c_write_register(&i2c, UB1_REG_GYRO_CONFIG_STATIC10, gyro_nf_bw) != HAL_OK) {
+	if (ICM42688P_I2C.write_register(UB1_REG_GYRO_CONFIG_STATIC10, gyro_nf_bw) != HAL_OK) {
 		return -2;
 	}
 	//Set Bank 0 to allow data measurements

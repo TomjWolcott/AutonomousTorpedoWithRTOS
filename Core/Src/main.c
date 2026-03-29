@@ -29,7 +29,6 @@
 #include "AdcData.hpp"
 #include "message.hpp"
 #include <stdio.h>
-//#include "freertos_comm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -99,6 +98,8 @@ void StartDefaultTask(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 SemaphoreHandle_t ssd1306_mutex;
+SemaphoreHandle_t i2c1_mutex;
+SemaphoreHandle_t i2c2_mutex;
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size) {
 	if (huart->Instance == UART4) {
@@ -111,14 +112,6 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 		msgInterruptTxHandler();
 	}
 }
-
-//void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef * hi2c) {
-//	i2c_interrupt_handler_tx(hi2c);
-//}
-//
-//void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef * hi2c) {
-//	i2c_interrupt_handler_rx(hi2c);
-//}
 
 //SemaphoreHandle_t xI2C1BusySemaphore;
 //SemaphoreHandle_t xI2C2BusySemaphore;
@@ -313,18 +306,9 @@ int main(void)
   osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
-
-  for (int i = 0; i < 10; i++) {
-	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-	  HAL_Delay(200);
-  }
   ssd1306_mutex = xSemaphoreCreateMutex();
-  HAL_Delay(1000);
-  for (int i = 0; i < 10; i++) {
-	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-	  HAL_Delay(200);
-  }
-//  init_freertos_i2c();
+  i2c1_mutex = xSemaphoreCreateMutex();
+  i2c2_mutex = xSemaphoreCreateMutex();
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 

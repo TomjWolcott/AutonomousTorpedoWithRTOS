@@ -5,7 +5,6 @@
  */
 
 #include "ms5837.h"
-#include "freertos_comm.h"
 
 // Stored in PROM word 0
 #define MS5837_ID_02BA01 (0x00)
@@ -15,8 +14,6 @@
 
 // Sensor only supports one address!
 #define MS5837_ADDR (0x76 << 1)
-
-static i2cSettings i2c = (i2cSettings){ &hi2c2, (0x76 << 1) };
 
 typedef enum {
     CMD_RESET = 0x1E,
@@ -59,7 +56,15 @@ void ms5837_i2c_write( ms5837_t *sensor, uint8_t command );
 
 void ms5837_i2c_read( ms5837_t *sensor, uint8_t command, uint8_t *data, uint8_t num_bytes )
 {
-	i2c_read_registers(&i2c, command, data, num_bytes);
+//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
+	int status = HAL_I2C_Mem_Read(
+	  &MS5837_I2C_PORT,
+	  MS5837_ADDR,
+	  command, 1,
+	  data, num_bytes,
+	  HAL_MAX_DELAY
+	);
+//    xSemaphoreGive(i2c2_mutex);
 }
 
 void ms5837_i2c_write( ms5837_t *sensor, uint8_t command )
@@ -67,7 +72,15 @@ void ms5837_i2c_write( ms5837_t *sensor, uint8_t command )
 	int data = 0;
 
 	// Yes, I know it says read.  This chip doesn't need to be writen to I guess smh so these are for just telling the chip what to do i guess
-	i2c_read_registers(&i2c, command, &data, 1);
+//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
+	int status = HAL_I2C_Mem_Read(
+	  &MS5837_I2C_PORT,
+	  MS5837_ADDR,
+	  command, 1,
+	  &data, 1,
+	  HAL_MAX_DELAY
+	);
+//    xSemaphoreGive(i2c2_mutex);
 }
 
 // ---------------------------------------------------------------------
@@ -339,9 +352,6 @@ uint8_t crc4( uint16_t n_prom[7] )
 
 
 ms5837_output_t ms5837_get_all_data( ms5837_t *sensor, float surface_pressure ) {
-//	uint32_t wait_us = 17000;
-//	xSemaphoreTake(i2c2_mutex, portMAX_DELAY);
-//    xSemaphoreGive(i2c2_mutex);
 	uint32_t wait_us = ms5837_start_conversion( sensor, SENSOR_PRESSURE, OSR_8192 );
 	osDelay(1 + wait_us / 1000);
 	ms5837_read_conversion( sensor );

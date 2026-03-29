@@ -2,7 +2,10 @@
 #define ICM42688_HPP
 
 #include "main.h"
+#include "i2c.hpp"
 #include <vector>
+
+extern DeviceI2C ICM42688P_I2C;
 
 struct ICM42688_Data {
 	float acc[3];
