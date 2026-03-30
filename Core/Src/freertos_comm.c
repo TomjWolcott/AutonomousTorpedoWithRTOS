@@ -6,15 +6,17 @@
  */
 
 #include "freertos_comm.h"
-#include "freertos.h"
-#include "task.h"
-#include "semphr.h"
 #include "event_groups.h"
 
-EventGroupHandle_t xI2CEventGroup;
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+static EventGroupHandle_t xI2CEventGroup;
 
 void i2c_interrupt_handler_tx(I2C_HandleTypeDef *hi2c) {
-    BaseType_t xHigherPriorityTaskWoken;
+    BaseType_t xHigherPriorityTaskWoken = pdFAIL;
 	BaseType_t xResult = pdFAIL;
 
 	if (hi2c->Instance == hi2c1.Instance) {
@@ -29,7 +31,7 @@ void i2c_interrupt_handler_tx(I2C_HandleTypeDef *hi2c) {
 }
 
 void i2c_interrupt_handler_rx(I2C_HandleTypeDef *hi2c) {
-    BaseType_t xHigherPriorityTaskWoken;
+    BaseType_t xHigherPriorityTaskWoken = pdFAIL;
 	BaseType_t xResult = pdFAIL;
 
 	if (hi2c->Instance == hi2c1.Instance) {
@@ -117,3 +119,7 @@ uint8_t i2c_read_register_with_code(i2cSettings *settings, uint8_t reg, HAL_Stat
 	*error_code = i2c_read_registers(settings, reg, &data, 1);
 	return data;
 }
+
+#ifdef __cplusplus
+}
+#endif

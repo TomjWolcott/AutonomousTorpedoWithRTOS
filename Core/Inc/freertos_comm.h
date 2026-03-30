@@ -8,6 +8,10 @@
 #ifndef INC_FREERTOS_COMM_H_
 #define INC_FREERTOS_COMM_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "main.h"
 
 #define FREERTOS_COMM_I2C1_TX_EVENT (0x01)
@@ -31,5 +35,9 @@ HAL_StatusTypeDef i2c_write_register(i2cSettings *settings, uint8_t reg, uint8_t
 HAL_StatusTypeDef i2c_read_registers(i2cSettings *settings, uint8_t reg, uint8_t *data, uint16_t size);
 uint8_t i2c_read_register(i2cSettings *settings, uint8_t reg);
 uint8_t i2c_read_register_with_code(i2cSettings *settings, uint8_t reg, HAL_StatusTypeDef *error_code);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* INC_FREERTOS_COMM_H_ */

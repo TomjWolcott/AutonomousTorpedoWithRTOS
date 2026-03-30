@@ -5,7 +5,6 @@
  */
 
 #include "ms5837.h"
-#include "freertos_comm.h"
 
 // Stored in PROM word 0
 #define MS5837_ID_02BA01 (0x00)
@@ -16,7 +15,7 @@
 // Sensor only supports one address!
 #define MS5837_ADDR (0x76 << 1)
 
-static i2cSettings i2c = (i2cSettings){ &hi2c2, (0x76 << 1) };
+//static i2cSettings i2c;// = (i2cSettings){ &hi2c2, (0x76 << 1) };
 
 typedef enum {
     CMD_RESET = 0x1E,
@@ -59,7 +58,7 @@ void ms5837_i2c_write( ms5837_t *sensor, uint8_t command );
 
 void ms5837_i2c_read( ms5837_t *sensor, uint8_t command, uint8_t *data, uint8_t num_bytes )
 {
-	i2c_read_registers(&i2c, command, data, num_bytes);
+//	i2c_read_registers(&i2c, command, data, num_bytes);
 }
 
 void ms5837_i2c_write( ms5837_t *sensor, uint8_t command )
@@ -67,7 +66,7 @@ void ms5837_i2c_write( ms5837_t *sensor, uint8_t command )
 	int data = 0;
 
 	// Yes, I know it says read.  This chip doesn't need to be writen to I guess smh so these are for just telling the chip what to do i guess
-	i2c_read_registers(&i2c, command, &data, 1);
+//	i2c_read_registers(&i2c, command, &data, 1);
 }
 
 // ---------------------------------------------------------------------

@@ -2,13 +2,16 @@
 #include "registers.hpp"
 #include <cstring>
 #include <cmath>
-extern "C" {
-#include "freertos_comm.h"
-}
 
 using namespace ICM42688reg;
 
-static i2cSettings i2c = ((i2cSettings){ &hi2c2, (0x69 << 1) });
+static int i2c = 1;
+static HAL_StatusTypeDef i2c_write_registers(int *settings, uint8_t reg, uint8_t *data, uint16_t size) { return HAL_OK; }
+static HAL_StatusTypeDef i2c_write_register(int *settings, uint8_t reg, uint8_t data) { return HAL_OK; }
+static HAL_StatusTypeDef i2c_read_registers(int *settings, uint8_t reg, uint8_t *data, uint16_t size) { return HAL_OK; }
+static uint8_t i2c_read_register(int *settings, uint8_t reg) { return 0; }
+
+//static i2cSettings i2c;// = ((i2cSettings){ &hi2c2, (0x69 << 1) });
 
 /// Needs 12 bytes
 
