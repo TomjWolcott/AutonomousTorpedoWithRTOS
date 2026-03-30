@@ -313,17 +313,9 @@ int main(void)
   osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
-
-  for (int i = 0; i < 10; i++) {
-	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-	  HAL_Delay(200);
-  }
   ssd1306_mutex = xSemaphoreCreateMutex();
-  HAL_Delay(1000);
-  for (int i = 0; i < 10; i++) {
-	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-	  HAL_Delay(200);
-  }
+
+  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 //  init_freertos_i2c();
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
