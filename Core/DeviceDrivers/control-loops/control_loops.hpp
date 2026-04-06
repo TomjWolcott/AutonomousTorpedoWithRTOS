@@ -62,7 +62,7 @@ struct RPYOutputs {
 class OrientationCL {
 private:
 	PidParams params;
-
+	int iii = 0;
 	vec<float,3> last_error = {0, 0, 0};
 	Instant last_time = {0, 0};
 	vec<float,3> integral = {0, 0, 0};

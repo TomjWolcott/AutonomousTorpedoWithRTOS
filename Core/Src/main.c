@@ -29,7 +29,7 @@
 #include "AdcData.hpp"
 #include "message.hpp"
 #include <stdio.h>
-//#include "freertos_comm.h"
+#include "freertos_comm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -112,14 +112,25 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 	}
 }
 
-//void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef * hi2c) {
-//	i2c_interrupt_handler_tx(hi2c);
-//}
-//
-//void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef * hi2c) {
-//	i2c_interrupt_handler_rx(hi2c);
-//}
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef * hi2c) {
+	i2c_interrupt_handler_write(hi2c);
+}
 
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef * hi2c) {
+	i2c_interrupt_handler_read(hi2c);
+}
+
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef * hi2c) {
+	i2c_interrupt_handler_tx(hi2c);
+}
+
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef * hi2c) {
+	i2c_interrupt_handler_rx(hi2c);
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c) {
+	i2c_interrupt_handler_error(hi2c);
+}
 //SemaphoreHandle_t xI2C1BusySemaphore;
 //SemaphoreHandle_t xI2C2BusySemaphore;
 
@@ -314,17 +325,10 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_MUTEX */
 
-  for (int i = 0; i < 10; i++) {
-	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-	  HAL_Delay(200);
-  }
-  ssd1306_mutex = xSemaphoreCreateMutex();
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
   HAL_Delay(1000);
-  for (int i = 0; i < 10; i++) {
-	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-	  HAL_Delay(200);
-  }
-//  init_freertos_i2c();
+  ssd1306_mutex = xSemaphoreCreateMutex(); // <--------- !!!!!!!! DON'T USE HAL_Delay AFTER THIS POINT !!!!!!!!
+  init_freertos_i2c();
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 

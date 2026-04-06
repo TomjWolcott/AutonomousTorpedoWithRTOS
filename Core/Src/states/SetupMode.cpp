@@ -34,7 +34,7 @@ namespace SystemModes {
 
 	void __NO_RETURN watchout(void *parameters) {
 		Task *this_task = (Task *)parameters;
-		char s[100];
+		char s[50];
 		int i = 0;
 
 		while (!this_task->is_task_dead) {
@@ -73,6 +73,9 @@ namespace SystemModes {
 //				sm_lock.unlock();
 			} else if (i == 0) {
 				xSemaphoreTake(ssd1306_mutex, portMAX_DELAY);
+				ssd1306_SetCursor(0, 16);
+				sprintf(s, "  FREE HEAP: %d", xPortGetFreeHeapSize());
+				ssd1306_WriteString(s, Font_6x8, White);
 				ssd1306_SetCursor(0, 24);
 				sprintf(s, "  Batt: %.2fV   ", batt_v);
 				ssd1306_WriteString(s, Font_6x8, White);
@@ -117,6 +120,10 @@ namespace SystemModes {
 		}
 
 		osThreadExit();
+	}
+
+	void __NO_RETURN send_i2c(void *parameters) {
+
 	}
 }
 
@@ -246,67 +253,84 @@ namespace SetupMode {
 
 	static int collectDataCount = 0;
 
+
+	static void blinkies(int n) {
+		osDelay(1000);
+		for (int i = 0; i < 2*n; i++) {
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+			osDelay(200);
+		}
+	}
+
 	// running at ~500Hz
 	void __NO_RETURN collectData(void *parameters) {
 		Task *this_task = (Task *)parameters;
+		int i;
 
 		while (!this_task->is_task_dead) {
-			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
-			auto data_lock = dataMutex.get_lock();
-			auto config_lock = configMutex.get_lock();
-			data_lock->adcData = AdcData::from_buffer();
-			data_lock->icm42688_output = data_lock->icm42688_dev.get_data_raw();
-			data_lock->ak09940a_output = data_lock->ak09940a_dev.single_measure_raw();
-			data_lock->localization.update(
-				config_lock->calibrated_acc(data_lock->icm42688_output.acc),
-				config_lock->calibrated_mag(data_lock->ak09940a_output.mag),
-				config_lock->calibrated_gyro(data_lock->icm42688_output.gyro)
-			);
+			for (i=0; i < 2; i++) {
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
+				auto data_lock = dataMutex.get_lock();
+				auto config_lock = configMutex.get_lock();
+				data_lock->adcData = AdcData::from_buffer();
+				data_lock->icm42688_output = data_lock->icm42688_dev.get_data_raw();
+				data_lock->ak09940a_output = data_lock->ak09940a_dev.single_measure_raw();
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+				data_lock->localization.update(
+					config_lock->calibrated_acc(data_lock->icm42688_output.acc),
+					config_lock->calibrated_mag(data_lock->ak09940a_output.mag),
+					config_lock->calibrated_gyro(data_lock->icm42688_output.gyro)
+				);
 
-			quat<float> ori_quat = data_lock->localization.output().orientation;
+				quat<float> ori_quat = data_lock->localization.output().orientation;
 
-			config_lock.unlock();
-			data_lock.unlock();
+				config_lock.unlock();
+				data_lock.unlock();
 
-			std::optional<std::array<float, 4>> motor_speeds_frpy = std::nullopt;
+				std::optional<std::array<float, 4>> motor_speeds_frpy = std::nullopt;
 
-			auto pid_lock = pidMutex.get_lock();
-			switch (pid_lock->state) {
-			case AQ_ITEM_MM_VERTICAL_ROLL_CL_TEST: {
-				const vec<float,3> dir = ori_quat * vec<float,3>{0, 0, 1};
-				const float target = pid_lock->targets.roll;
-				const float measured = atan2(X(dir), Y(dir));
+				auto pid_lock = pidMutex.get_lock();
+				switch (pid_lock->state) {
+				case AQ_ITEM_MM_VERTICAL_ROLL_CL_TEST: {
+					const vec<float,3> dir = ori_quat * vec<float,3>{0, 0, 1};
+					const float target = pid_lock->targets.roll;
+					const float measured = atan2(X(dir), Y(dir));
 
-				const float output = pid_lock->roll.update(target, measured);
+					const float output = pid_lock->roll.update(target, measured);
 
-				motor_speeds_frpy = {0, output, 0, 0};
-				break;
-			} case AQ_ITEM_MM_MAINTAIN_ORI_TEST: {
-				RPYOutputs rpy_outputs = pid_lock->oriCL.update(pid_lock->target_ori, ori_quat);
+					motor_speeds_frpy = {0, output, 0, 0};
+					break;
+				} case AQ_ITEM_MM_MAINTAIN_ORI_TEST: {
+					RPYOutputs rpy_outputs = pid_lock->oriCL.update(pid_lock->target_ori, ori_quat);
 
-				motor_speeds_frpy = {0, rpy_outputs.roll, rpy_outputs.pitch, rpy_outputs.yaw};
-				break;
-			} case AQ_ITEM_MM_FORWARD: {
-				RPYOutputs rpy_outputs = pid_lock->oriCL.update(pid_lock->target_ori, ori_quat);
+					motor_speeds_frpy = {0, rpy_outputs.roll, rpy_outputs.pitch, rpy_outputs.yaw};
+					break;
+				} case AQ_ITEM_MM_FORWARD: {
+					RPYOutputs rpy_outputs = pid_lock->oriCL.update(pid_lock->target_ori, ori_quat);
 
-				motor_speeds_frpy = {pid_lock->speed, rpy_outputs.roll, rpy_outputs.pitch, rpy_outputs.yaw};
-				break;
-			} case AQ_ITEM_MM_NONE: {
-				break;
-			} default: {
+					motor_speeds_frpy = {pid_lock->speed, rpy_outputs.roll, rpy_outputs.pitch, rpy_outputs.yaw};
+					break;
+				} case AQ_ITEM_MM_NONE: {
+					break;
+				} default: {
 
-			}}
-			pid_lock.unlock();
+				}}
+				pid_lock.unlock();
 
-			if (motor_speeds_frpy.has_value()) {
-				auto motor_lock = motorControlMutex.get_lock();
-				motor_lock->set_motor_speeds_frpy(motor_speeds_frpy.value());
-				motor_lock.unlock();
+				if (motor_speeds_frpy.has_value()) {
+					auto motor_lock = motorControlMutex.get_lock();
+					motor_lock->set_motor_speeds_frpy(motor_speeds_frpy.value());
+					motor_lock.unlock();
+				}
+
+				collectDataCount++;
+	//			osDelay(100);
+				stack_expense[0] = 4 * uxTaskGetStackHighWaterMark(NULL);
 			}
 
-			collectDataCount++;
-//			osDelay(100);
-			stack_expense[0] = 4 * uxTaskGetStackHighWaterMark(NULL);
+			osDelay(1);
 		}
 
 		osThreadExit();
@@ -319,6 +343,7 @@ namespace SetupMode {
 		while (!this_task->is_task_dead) {
 			uint16_t rate_hz = 1000 * collectDataCount / (HAL_GetTick() - last_t);
 			collectDataCount = 0;
+//			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
 
 			last_t = HAL_GetTick();
 			OtherData other_data = OtherData((1000 * (uint64_t)last_t), rate_hz);
@@ -368,8 +393,8 @@ namespace SetupMode {
 			config_lock.unlock();
 
 			auto ms5837_lock = ms5837Mutex.get_lock();
-			ms5837_output_t ms5837_output = ms5837_get_all_data( &(*ms5837_lock), surface_pressure );
-//			ms5837_output_t ms5837_output = (ms5837_output_t){1.0, 4.0, 2.13};
+//			ms5837_output_t ms5837_output = ms5837_get_all_data( &(*ms5837_lock), surface_pressure );
+			ms5837_output_t ms5837_output = (ms5837_output_t){1.0, 4.0, 2.13};
 			ms5837_lock.unlock();
 ////
 //
@@ -383,7 +408,7 @@ namespace SetupMode {
 
 			current_time = HAL_GetTick();
 			delay = ((current_time - last_time) < OUTER_LOOP_DELAY_MAX) ? (OUTER_LOOP_DELAY_MAX - (current_time - last_time)) : 2;
-			printf("delay: %d\n", delay);
+//			printf("delay: %d\n", delay);
 			osDelay(delay);
 			last_time = HAL_GetTick();
 		}
@@ -394,6 +419,7 @@ namespace SetupMode {
 	void __NO_RETURN debugPrinter(void *parameters) {
 		Task *this_task = (Task *)parameters;
 //		Instant prevInstant = getInstant();
+		char s[500];
 
 		while (!this_task->is_task_dead) {
 //			auto motor_lock = motorControlMutex.get_lock();
@@ -425,6 +451,10 @@ namespace SetupMode {
 //			if (msg_opt.has_value()) {
 //				msg_opt.value().send();
 //			}
+
+//			vTaskList(s);
+
+//			printf("%s\n", s);
 			osDelay(500);
 		}
 

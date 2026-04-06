@@ -47,14 +47,13 @@ float RollCL::update(float target, float measured) {
 
 const float FIX_ROLL_UPPER = 0.32 * M_PI;
 const float FIX_ROLL_LOWER = 0.16 * M_PI;
-
 // Derivation of math in docs/orientationCL_math.jpg
 RPYOutputs OrientationCL::update(quat<float> target, quat<float> measured) {
 	const Instant now = getInstant();
 	const float dt = 1e-6 * (float)(elapsed_us2(last_time, now));
 	vec<float,3> output = vec<float,3>{ 0, 0, 0 };
 
-	const quat<float> body_target = target * conjugate(measured);
+	const quat<float> body_target = conjugate(target) * measured;
 
 	// Fix pitch + yaw first
 	vec<float,3> x_err = body_target * vec<float,3>{1, 0, 0};
@@ -69,6 +68,16 @@ RPYOutputs OrientationCL::update(quat<float> target, quat<float> measured) {
 	float major_angle_error = acos(X(x_err));
 	float phi_major = atan2(Z(axis_major), Y(axis_major));
 	float phi_minor = atan2(dot(y_err, axis_minor), dot(y_err, axis_major));
+
+//	iii += 1;
+//	if (iii >= 300) {
+//		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+////		printf("%.2f,%.2f,%.2f\n", X(axis_major), Y(axis_major), Z(axis_major));
+//		printf("%.2f,%.2f,%.2f\n", X(x_err), Y(x_err), Z(x_err));
+////		printf("phi_minor: %.3f\n", phi_minor);
+//		osDelay(7);
+//		iii = 0;
+//	}
 
 	float py_angle = phi_minor - M_PI / 2.0;
 	float roll_error = mod2(phi_major - phi_minor + M_PI, 2.0*M_PI) - M_PI;
@@ -99,7 +108,7 @@ RPYOutputs OrientationCL::update(quat<float> target, quat<float> measured) {
 	last_time = now;
 	last_error = error;
 
-	return (RPYOutputs){ X(output), Y(output), Z(output) };
+	return (RPYOutputs){ Z(output), -X(output), Y(output) };
 }
 
 OriAndSpeedOutput update(

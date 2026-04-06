@@ -11,6 +11,9 @@
 #include "task.h"
 #include "AdcData.hpp"
 #include "config.hpp"
+extern "C" {
+#include "freertos_comm.h"
+}
 
 MutexLazy<sml::sm<SystemModes::SM>> systemModesSM = MutexLazy<sml::sm<SystemModes::SM>>();
 MutexLazy<Data> dataMutex = MutexLazy<Data>();
@@ -20,6 +23,14 @@ MutexLazy<PIDs> pidMutex;
 MutexLazy<ActionQueueState> actionQueueMutex;
 MutexLazy<OuterData> outerDataMutex;
 MutexLazy<ms5837_t> ms5837Mutex = MutexLazy<ms5837_t>();
+
+static void blinkies(int n) {
+	osDelay(1000);
+	for (int i = 0; i < 2*n; i++) {
+		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
+		osDelay(200);
+	}
+}
 
 static void i2c_scan(I2C_HandleTypeDef *hi2c) {
 	uint8_t i, ret;
@@ -47,38 +58,50 @@ extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	ssd1306_Init();
 	initADC();
 
+	printf("START\n");
+
 	configMutex = MutexLazy<Config>(Config::from_flash());
 	configMutex.ensureInitialized();
 
 	MotorControl motor_control = MotorControl();
 	motor_control.initialize_pwm();
 	motorControlMutex = MutexLazy<MotorControl>(motor_control);
+	printf("A--------------\n");
 
 	PIDs pids;
 	pids.roll = RollCL(PidParams(0.3, 0.2, 0.1, -1.0, 1.0, -10.0, 10.0));
 	pids.oriCL = OrientationCL(PidParams(0.2, 0.0, 0.0, -1.0, 1.0, -10.0, 10.0));
 	pidMutex = MutexLazy<PIDs>(pids);
+	printf("B---------------\n");
 
 	actionQueueMutex = MutexLazy<ActionQueueState>(ActionQueueState());
 	actionQueueMutex.ensureInitialized();
 
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+	printf("C---------------\n");
+
 	auto data_lock = dataMutex.get_lock();
 	data_lock->ak09940a_dev = AK09940A_Dev();
 	data_lock->ak09940a_dev.init(AK09940A_PowerDown, AK09940A_LowNoiseDrive2);
-	osDelay(1);
+
 	data_lock->icm42688_dev = ICM42688();
-	data_lock->icm42688_dev.begin();
+	i2c_flush(&hi2c2);
+	osDelay(10);
+	int status_begin = data_lock->icm42688_dev.begin();
+	printf("icm42688p begin status: %d\n", status_begin);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
 	data_lock->icm42688_dev.setAccelFS(ICM42688::AccelFS::gpm4);
 	data_lock->icm42688_dev.setGyroFS(ICM42688::GyroFS::dps62_5);
 
 	data_lock.unlock();
-
+	printf("D-----------------\n");
 	ms5837Mutex.ensureInitialized();
 	auto ms5837_lock = ms5837Mutex.get_lock();
 	ms5837_reset( &(*ms5837_lock) );
 	osDelay(10);
 	ms5837_read_calibration_data( &(*ms5837_lock) );
 	ms5837_lock.unlock();
+	printf("E------------------\n");
 
 	OuterData outer_data;
 	outerDataMutex = MutexLazy<OuterData>(outer_data);
@@ -88,10 +111,6 @@ extern "C" __NO_RETURN void cppMainTask(void *argument) {
 	i2c_scan(&hi2c1);
 	printf("\nI2C2: \n");
 	i2c_scan(&hi2c2);
-
-//	ssd1306_SetCursor(0, 0);
-//	ssd1306_WriteString("2025/2026 Winter", Font_6x8, White);
-//	ssd1306_UpdateScreen();
 
 	auto sm_lock = systemModesSM.get_lock();
 	sm_lock->process_event(SystemModes::StartStateMachine{});

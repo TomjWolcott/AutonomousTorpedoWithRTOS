@@ -16,7 +16,7 @@
 // Sensor only supports one address!
 #define MS5837_ADDR (0x76 << 1)
 
-static i2cSettings i2c = (i2cSettings){ &hi2c2, (0x76 << 1) };
+static i2cSettings i2c = I2C_SETTINGS(&hi2c2, (0x76 << 1), false);
 
 typedef enum {
     CMD_RESET = 0x1E,
@@ -59,15 +59,16 @@ void ms5837_i2c_write( ms5837_t *sensor, uint8_t command );
 
 void ms5837_i2c_read( ms5837_t *sensor, uint8_t command, uint8_t *data, uint8_t num_bytes )
 {
-	i2c_read_registers(&i2c, command, data, num_bytes);
+	i2c_transmit(&i2c, &command, 1);
+
+	osDelay(20);
+
+	i2c_receive(&i2c, data, num_bytes);
 }
 
 void ms5837_i2c_write( ms5837_t *sensor, uint8_t command )
 {
-	int data = 0;
-
-	// Yes, I know it says read.  This chip doesn't need to be writen to I guess smh so these are for just telling the chip what to do i guess
-	i2c_read_registers(&i2c, command, &data, 1);
+	i2c_transmit(&i2c, &command, 1);
 }
 
 // ---------------------------------------------------------------------

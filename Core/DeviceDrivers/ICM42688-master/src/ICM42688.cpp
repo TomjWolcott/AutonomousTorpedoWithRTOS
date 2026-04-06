@@ -2,13 +2,14 @@
 #include "registers.hpp"
 #include <cstring>
 #include <cmath>
+#include <cstdio>
 extern "C" {
 #include "freertos_comm.h"
 }
 
 using namespace ICM42688reg;
 
-static i2cSettings i2c = ((i2cSettings){ &hi2c2, (0x69 << 1) });
+static i2cSettings i2c = I2C_SETTINGS( &hi2c2, (0x69 << 1), true );
 
 /// Needs 12 bytes
 
@@ -660,15 +661,20 @@ int ICM42688::setBank(uint8_t bank) {
 		return 1;
 	}
 
-	_bank = bank;
+	int status = i2c_write_register(&i2c, REG_BANK_SEL, bank);
 
-	return i2c_write_register(&i2c, REG_BANK_SEL, bank);
+	if (status == 0)
+		_bank = bank;
+
+	return status;
 }
 
 void ICM42688::reset() {
-	setBank(0);
+	int status = setBank(0);
 
-	i2c_write_register(&i2c, UB0_REG_DEVICE_CONFIG, 0x01);
+	int status2 = i2c_write_register(&i2c, UB0_REG_DEVICE_CONFIG, 0x01);
+
+	printf("ICM42688P First,second write status: %d, %d\n", status, status2);
 
 	// wait for ICM42688 to come back up
 	osDelay(1);
@@ -680,6 +686,7 @@ uint8_t ICM42688::whoAmI() {
 
 	// read the WHO AM I register
 	if (i2c_read_registers(&i2c, UB0_REG_WHO_AM_I, _buffer, 1) != HAL_OK) {
+		printf("whoami also failed with the buffer having: %d\n", _buffer[0]);
 		return -1;
 	}
 	// return the register value

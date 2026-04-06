@@ -12,6 +12,8 @@
 #include "cmsis_os.h"
 #include "cpp_freertos_helpers.hpp"
 #include <functional>
+#include "main.h"
+#include <string>
 
 #include "sml.hpp"
 namespace sml = boost::sml;
@@ -78,8 +80,13 @@ struct Task {
 template<size_t N, Task state_tasks[N]>
 void enterStateAction() {
     for (size_t i = 0; i < N; ++i) {
-    	if (state_tasks[i].task)
-    		state_tasks[i].spawn();
+    	if (state_tasks[i].task) {
+    		bool success = state_tasks[i].spawn();
+
+    		if (!success) {
+    			printf("Failed to create task: %s\n", state_tasks[i].attributes.name);
+    		}
+    	}
     }
 }
 
@@ -144,12 +151,12 @@ namespace SetupMode {
 		};
 
 		static Task SENDING_DATA_TASKS[] = {
-			Task(collectData, {.name = "collectData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal }, nullptr),
-			Task(sendData, {.name = "sendData", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-			Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-			Task(debugPrinter, {.name = "debugPrinter", .stack_size = 600, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-			Task(handleActionQueue, {.name = "handleAQ", .stack_size = 1500, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-			Task(depthAndSpeedControl, {.name = "depthAndSpeed", .stack_size = 1024, .priority = (osPriority_t) osPriorityNormal}, nullptr)
+			Task(collectData, {.name = "collectData", .stack_size = 620, .priority = (osPriority_t) osPriorityNormal }, nullptr),
+			Task(sendData, {.name = "sendData", .stack_size = 1200, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+			Task(respondToInput, {.name = "inputResp_conn", .stack_size = 1000, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+//			Task(debugPrinter, {.name = "debugPrinter", .stack_size = 800, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+			Task(handleActionQueue, {.name = "handleAQ", .stack_size = 1000, .priority = (osPriority_t) osPriorityNormal}, nullptr),
+//			Task(depthAndSpeedControl, {.name = "depthAndSpeed", .stack_size =500, .priority = (osPriority_t) osPriorityNormal}, nullptr)
 		};
 
 		// Events
@@ -166,8 +173,8 @@ namespace SetupMode {
 			auto operator()() const {
 				return make_transition_table(
 					state<Calibrating> <= *state<SendingData> + event<CalibrationStart>,
-						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<6, SENDING_DATA_TASKS>),
-						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<6, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<4, SENDING_DATA_TASKS>),
+						                   state<SendingData> + sml::on_exit<_> / static_cast<std::function<void(void)>>(exitStateAction<4, SENDING_DATA_TASKS>),
 
 					state<SendingData> <= state<Calibrating> + event<CalibrationStop>,
 						                  state<Calibrating> + sml::on_entry<_> / static_cast<std::function<void(void)>>(enterStateAction<1, CALIBRATING_TASKS>),
@@ -209,8 +216,8 @@ namespace SystemModes {
 
 	static Task SETUP_TASKS[] = {
 		Task(repeatEchoes, {.name = "echoReply", .stack_size = 400, .priority = (osPriority_t) osPriorityNormal}, nullptr),
-		Task(watchout, {.name = "watchout", .stack_size = 1000, .priority = (osPriority_t) osPriorityHigh}, nullptr),
-		Task(motor_current_control, {.name = "motorLimiter", .stack_size = 1500, .priority = (osPriority_t) osPriorityHigh}, nullptr)
+		Task(watchout, {.name = "watchout", .stack_size = 800, .priority = (osPriority_t) osPriorityHigh}, nullptr),
+		Task(motor_current_control, {.name = "motorLimiter", .stack_size = 400, .priority = (osPriority_t) osPriorityHigh}, nullptr)
 	};
 
 	// Events

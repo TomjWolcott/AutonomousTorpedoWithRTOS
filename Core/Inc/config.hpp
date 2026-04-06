@@ -28,7 +28,7 @@ private:
 	float accScale[3];
 	float gyrBias[3];
 
-	float surfacePressure_mbar = 1013.0;
+	float surfacePressure_mbar = 1063.0;
 
 	// PID: TODO
 

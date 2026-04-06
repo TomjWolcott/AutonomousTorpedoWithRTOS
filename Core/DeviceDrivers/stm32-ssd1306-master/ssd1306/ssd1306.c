@@ -32,9 +32,9 @@ void ssd1306_Reset(void) {
 
     // Reset the OLED
     HAL_GPIO_WritePin(SSD1306_Reset_Port, SSD1306_Reset_Pin, GPIO_PIN_RESET);
-    HAL_Delay(10);
+    osDelay(10);
     HAL_GPIO_WritePin(SSD1306_Reset_Port, SSD1306_Reset_Pin, GPIO_PIN_SET);
-    HAL_Delay(10);
+    osDelay(10);
 }
 
 // Send a byte to the command register
@@ -80,7 +80,7 @@ void ssd1306_Init(void) {
     ssd1306_Reset();
 
     // Wait for the screen to boot
-    HAL_Delay(100);
+    osDelay(100);
 
     // Init OLED
     ssd1306_SetDisplayOn(0); //display off

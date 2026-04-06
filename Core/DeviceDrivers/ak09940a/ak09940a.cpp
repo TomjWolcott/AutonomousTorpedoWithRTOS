@@ -12,7 +12,7 @@ extern "C" {
 #include "freertos_comm.h"
 }
 
-static i2cSettings i2c = ((i2cSettings){ &hi2c2, (0x0F << 1) });
+static i2cSettings i2c = I2C_SETTINGS( &hi2c2, (0x0F << 1), true );
 
 /// Needs 12 bytes
 void AK09940A_Output::into_message(std::vector<uint8_t> &data) {

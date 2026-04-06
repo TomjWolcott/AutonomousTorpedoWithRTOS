@@ -10,21 +10,32 @@
 
 #include "main.h"
 
-#define FREERTOS_COMM_I2C1_TX_EVENT (0x01)
-#define FREERTOS_COMM_I2C1_RX_EVENT (0x02)
-#define FREERTOS_COMM_I2C2_TX_EVENT (0x04)
-#define FREERTOS_COMM_I2C2_RX_EVENT (0x08)
-#define FREERTOS_COMM_I2C1_EVENT (FREERTOS_COMM_I2C1_TX_EVENT | FREERTOS_COMM_I2C1_RX_EVENT)
-#define FREERTOS_COMM_I2C2_EVENT (FREERTOS_COMM_I2C2_TX_EVENT | FREERTOS_COMM_I2C2_RX_EVENT)
+//#define FREERTOS_COMM_I2C1_TX_EVENT (0x01)
+//#define FREERTOS_COMM_I2C1_RX_EVENT (0x02)
+//#define FREERTOS_COMM_I2C2_TX_EVENT (0x04)
+//#define FREERTOS_COMM_I2C2_RX_EVENT (0x08)
+//#define FREERTOS_COMM_I2C1_EVENT (FREERTOS_COMM_I2C1_TX_EVENT | FREERTOS_COMM_I2C1_RX_EVENT)
+//#define FREERTOS_COMM_I2C2_EVENT (FREERTOS_COMM_I2C2_TX_EVENT | FREERTOS_COMM_I2C2_RX_EVENT)
 
 typedef struct {
 	I2C_HandleTypeDef *hi2c;
 	uint8_t address;
+	int expect_response;
 } i2cSettings;
 
+#define I2C_SETTINGS(hi2c, address, expect_response) ((i2cSettings){(hi2c), (address), (expect_response)})
+
+void i2c_interrupt_handler_read(I2C_HandleTypeDef *hi2c);
+void i2c_interrupt_handler_write(I2C_HandleTypeDef *hi2c);
 void i2c_interrupt_handler_tx(I2C_HandleTypeDef *hi2c);
 void i2c_interrupt_handler_rx(I2C_HandleTypeDef *hi2c);
+void i2c_interrupt_handler_error(I2C_HandleTypeDef *hi2c);
 void init_freertos_i2c();
+
+HAL_StatusTypeDef i2c_transmit(i2cSettings *settings, uint8_t *data, uint16_t size);
+HAL_StatusTypeDef i2c_receive(i2cSettings *settings, uint8_t *data, uint16_t size);
+
+void i2c_flush(I2C_HandleTypeDef *hi2c);
 
 HAL_StatusTypeDef i2c_write_registers(i2cSettings *settings, uint8_t reg, uint8_t *data, uint16_t size);
 HAL_StatusTypeDef i2c_write_register(i2cSettings *settings, uint8_t reg, uint8_t data);
